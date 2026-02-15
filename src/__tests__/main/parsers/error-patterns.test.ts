@@ -16,6 +16,7 @@ import {
 	CLAUDE_ERROR_PATTERNS,
 	OPENCODE_ERROR_PATTERNS,
 	CODEX_ERROR_PATTERNS,
+	CLINE_ERROR_PATTERNS,
 	SSH_ERROR_PATTERNS,
 	type AgentErrorPatterns,
 } from '../../../main/parsers/error-patterns';
@@ -173,6 +174,38 @@ describe('error-patterns', () => {
 		});
 	});
 
+	describe('CLINE_ERROR_PATTERNS', () => {
+		it('should define auth_expired patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.auth_expired).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.auth_expired?.length).toBeGreaterThan(0);
+		});
+
+		it('should define rate_limited patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.rate_limited).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.rate_limited?.length).toBeGreaterThan(0);
+		});
+
+		it('should define token_exhaustion patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.token_exhaustion).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.token_exhaustion?.length).toBeGreaterThan(0);
+		});
+
+		it('should define network_error patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.network_error).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.network_error?.length).toBeGreaterThan(0);
+		});
+
+		it('should define permission_denied patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.permission_denied).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.permission_denied?.length).toBeGreaterThan(0);
+		});
+
+		it('should define agent_crashed patterns', () => {
+			expect(CLINE_ERROR_PATTERNS.agent_crashed).toBeDefined();
+			expect(CLINE_ERROR_PATTERNS.agent_crashed?.length).toBeGreaterThan(0);
+		});
+	});
+
 	describe('getErrorPatterns', () => {
 		it('should return claude-code patterns', () => {
 			const patterns = getErrorPatterns('claude-code');
@@ -187,6 +220,11 @@ describe('error-patterns', () => {
 		it('should return codex patterns', () => {
 			const patterns = getErrorPatterns('codex');
 			expect(patterns).toBe(CODEX_ERROR_PATTERNS);
+		});
+
+		it('should return cline patterns', () => {
+			const patterns = getErrorPatterns('cline');
+			expect(patterns).toBe(CLINE_ERROR_PATTERNS);
 		});
 
 		it('should return empty object for unknown agent', () => {
@@ -546,6 +584,203 @@ describe('error-patterns', () => {
 				});
 			});
 		});
+
+		describe('Cline-specific patterns', () => {
+			describe('auth_expired patterns', () => {
+				it('should match "invalid api key"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'invalid api key');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+					expect(result?.recoverable).toBe(true);
+				});
+
+				it('should match "authentication failed"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'authentication failed');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+				});
+
+				it('should match "unauthorized"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'unauthorized');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+				});
+
+				it('should match "no api key"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'no api key configured');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+				});
+
+				it('should match "401"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error 401: Unauthorized');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+				});
+
+				it('should match "invalid model format"', () => {
+					const result = matchErrorPattern(
+						CLINE_ERROR_PATTERNS,
+						'invalid model format: must be provider/model'
+					);
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('auth_expired');
+					expect(result?.message).toContain('provider/model');
+				});
+			});
+
+			describe('rate_limited patterns', () => {
+				it('should match "rate limit"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'rate limit exceeded');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('rate_limited');
+					expect(result?.recoverable).toBe(true);
+				});
+
+				it('should match "too many requests"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'too many requests');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('rate_limited');
+				});
+
+				it('should match "429"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error 429');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('rate_limited');
+				});
+
+				it('should match "quota exceeded"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'quota exceeded');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('rate_limited');
+				});
+			});
+
+			describe('token_exhaustion patterns', () => {
+				it('should match "context window exceeded"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'context window exceeded');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('token_exhaustion');
+					expect(result?.recoverable).toBe(true);
+				});
+
+				it('should match "maximum context length"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'maximum context length reached');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('token_exhaustion');
+				});
+
+				it('should match "token limit"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'token limit exceeded');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('token_exhaustion');
+				});
+
+				it('should match "too many tokens"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'too many tokens');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('token_exhaustion');
+				});
+			});
+
+			describe('network_error patterns', () => {
+				it('should match "ECONNREFUSED"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error: ECONNREFUSED');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('network_error');
+					expect(result?.recoverable).toBe(true);
+				});
+
+				it('should match "ETIMEDOUT"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error: ETIMEDOUT');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('network_error');
+				});
+
+				it('should match "network error"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'network error occurred');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('network_error');
+				});
+
+				it('should match "fetch failed"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'fetch failed');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('network_error');
+				});
+
+				it('should match "ENOTFOUND"', () => {
+					const result = matchErrorPattern(
+						CLINE_ERROR_PATTERNS,
+						'getaddrinfo ENOTFOUND api.example.com'
+					);
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('network_error');
+				});
+			});
+
+			describe('permission_denied patterns', () => {
+				it('should match "permission denied"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'permission denied');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('permission_denied');
+					expect(result?.recoverable).toBe(true);
+				});
+
+				it('should match "EACCES"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error: EACCES');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('permission_denied');
+				});
+
+				it('should match "EPERM"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'Error: EPERM');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('permission_denied');
+				});
+			});
+
+			describe('agent_crashed patterns', () => {
+				it('should match "fatal error"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'fatal error in process');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('agent_crashed');
+					expect(result?.recoverable).toBe(false);
+				});
+
+				it('should match "unhandled exception"', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, 'unhandled exception at line 42');
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('agent_crashed');
+					expect(result?.recoverable).toBe(false);
+				});
+
+				it('should match "segmentation fault"', () => {
+					const result = matchErrorPattern(
+						CLINE_ERROR_PATTERNS,
+						'segmentation fault (core dumped)'
+					);
+					expect(result).not.toBeNull();
+					expect(result?.type).toBe('agent_crashed');
+					expect(result?.recoverable).toBe(false);
+				});
+			});
+
+			describe('non-matching lines', () => {
+				it('should return null for normal output', () => {
+					const result = matchErrorPattern(
+						CLINE_ERROR_PATTERNS,
+						'Hello, how can I help you today?'
+					);
+					expect(result).toBeNull();
+				});
+
+				it('should return null for empty string', () => {
+					const result = matchErrorPattern(CLINE_ERROR_PATTERNS, '');
+					expect(result).toBeNull();
+				});
+			});
+		});
 	});
 
 	describe('SSH_ERROR_PATTERNS', () => {
@@ -812,6 +1047,7 @@ describe('error-patterns', () => {
 			registerErrorPatterns('claude-code', CLAUDE_ERROR_PATTERNS);
 			registerErrorPatterns('opencode', OPENCODE_ERROR_PATTERNS);
 			registerErrorPatterns('codex', CODEX_ERROR_PATTERNS);
+			registerErrorPatterns('cline', CLINE_ERROR_PATTERNS);
 		});
 
 		it('should register custom patterns', () => {
@@ -853,6 +1089,7 @@ describe('error-patterns', () => {
 			registerErrorPatterns('claude-code', CLAUDE_ERROR_PATTERNS);
 			registerErrorPatterns('opencode', OPENCODE_ERROR_PATTERNS);
 			registerErrorPatterns('codex', CODEX_ERROR_PATTERNS);
+			registerErrorPatterns('cline', CLINE_ERROR_PATTERNS);
 		});
 
 		it('should clear all registered patterns', () => {

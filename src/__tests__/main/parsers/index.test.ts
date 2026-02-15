@@ -9,6 +9,7 @@ import {
 	ClaudeOutputParser,
 	OpenCodeOutputParser,
 	CodexOutputParser,
+	ClineOutputParser,
 } from '../../../main/parsers';
 
 describe('parsers/index', () => {
@@ -49,21 +50,29 @@ describe('parsers/index', () => {
 			expect(hasOutputParser('factory-droid')).toBe(true);
 		});
 
-		it('should register exactly 4 parsers', () => {
+		it('should register Cline parser', () => {
+			expect(hasOutputParser('cline')).toBe(false);
+
+			initializeOutputParsers();
+
+			expect(hasOutputParser('cline')).toBe(true);
+		});
+
+		it('should register exactly 5 parsers', () => {
 			initializeOutputParsers();
 
 			const parsers = getAllOutputParsers();
-			expect(parsers.length).toBe(4); // Claude, OpenCode, Codex, Factory Droid
+			expect(parsers.length).toBe(5); // Claude, OpenCode, Codex, Factory Droid, Cline
 		});
 
 		it('should clear existing parsers before registering', () => {
 			// First initialization
 			initializeOutputParsers();
-			expect(getAllOutputParsers().length).toBe(4);
+			expect(getAllOutputParsers().length).toBe(5);
 
-			// Second initialization should still have exactly 4
+			// Second initialization should still have exactly 5
 			initializeOutputParsers();
-			expect(getAllOutputParsers().length).toBe(4);
+			expect(getAllOutputParsers().length).toBe(5);
 		});
 	});
 
@@ -73,7 +82,7 @@ describe('parsers/index', () => {
 
 			ensureParsersInitialized();
 
-			expect(getAllOutputParsers().length).toBe(4);
+			expect(getAllOutputParsers().length).toBe(5);
 		});
 
 		it('should be idempotent after first call', () => {
@@ -110,6 +119,12 @@ describe('parsers/index', () => {
 			expect(parser).toBeInstanceOf(CodexOutputParser);
 		});
 
+		it('should return ClineOutputParser for cline', () => {
+			const parser = getOutputParser('cline');
+			expect(parser).not.toBeNull();
+			expect(parser).toBeInstanceOf(ClineOutputParser);
+		});
+
 		it('should return null for terminal', () => {
 			const parser = getOutputParser('terminal');
 			expect(parser).toBeNull();
@@ -135,6 +150,11 @@ describe('parsers/index', () => {
 		it('should export CodexOutputParser class', () => {
 			const parser = new CodexOutputParser();
 			expect(parser.agentId).toBe('codex');
+		});
+
+		it('should export ClineOutputParser class', () => {
+			const parser = new ClineOutputParser();
+			expect(parser.agentId).toBe('cline');
 		});
 	});
 
@@ -176,6 +196,19 @@ describe('parsers/index', () => {
 
 			expect(event?.type).toBe('init');
 			expect(event?.sessionId).toBe('cdx-456');
+		});
+
+		it('should correctly parse Cline output after initialization', () => {
+			initializeOutputParsers();
+
+			const parser = getOutputParser('cline');
+			// Cline uses task_started for session initialization with taskId
+			const event = parser?.parseJsonLine(
+				JSON.stringify({ type: 'task_started', taskId: 'cline-789' })
+			);
+
+			expect(event?.type).toBe('init');
+			expect(event?.sessionId).toBe('cline-789');
 		});
 	});
 });

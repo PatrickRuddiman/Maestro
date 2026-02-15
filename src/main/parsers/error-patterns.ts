@@ -29,6 +29,7 @@ const VALID_TOOL_TYPES = new Set<string>([
 	'codex',
 	'terminal',
 	'factory-droid',
+	'cline',
 ]);
 
 /**
@@ -685,6 +686,155 @@ export const FACTORY_DROID_ERROR_PATTERNS: AgentErrorPatterns = {
 };
 
 // ============================================================================
+// Cline Error Patterns
+// ============================================================================
+
+export const CLINE_ERROR_PATTERNS: AgentErrorPatterns = {
+	auth_expired: [
+		{
+			pattern: /invalid.*api.*key/i,
+			message: 'Authentication failed. Run "cline auth" to configure your API key.',
+			recoverable: true,
+		},
+		{
+			pattern: /authentication.*failed/i,
+			message: 'Authentication failed. Run "cline auth" to configure your API key.',
+			recoverable: true,
+		},
+		{
+			pattern: /unauthorized/i,
+			message: 'Authentication failed. Run "cline auth" to configure your API key.',
+			recoverable: true,
+		},
+		{
+			pattern: /no.*api.*key/i,
+			message: 'Authentication failed. Run "cline auth" to configure your API key.',
+			recoverable: true,
+		},
+		{
+			pattern: /401/,
+			message: 'Authentication failed. Run "cline auth" to configure your API key.',
+			recoverable: true,
+		},
+		{
+			pattern: /invalid.*model.*format/i,
+			message: 'Invalid model format. Use provider/model (e.g., openai/gpt-4o).',
+			recoverable: true,
+		},
+	],
+
+	rate_limited: [
+		{
+			pattern: /rate.*limit/i,
+			message: 'Rate limited by AI provider. Wait a moment or switch to a different model.',
+			recoverable: true,
+		},
+		{
+			pattern: /too.*many.*requests/i,
+			message: 'Rate limited by AI provider. Wait a moment or switch to a different model.',
+			recoverable: true,
+		},
+		{
+			pattern: /429/,
+			message: 'Rate limited by AI provider. Wait a moment or switch to a different model.',
+			recoverable: true,
+		},
+		{
+			pattern: /quota.*exceeded/i,
+			message: 'Rate limited by AI provider. Wait a moment or switch to a different model.',
+			recoverable: true,
+		},
+	],
+
+	token_exhaustion: [
+		{
+			pattern: /context.*window.*exceeded/i,
+			message: 'Context window exceeded. Try a model with a larger context window.',
+			recoverable: true,
+		},
+		{
+			pattern: /maximum.*context.*length/i,
+			message: 'Context window exceeded. Try a model with a larger context window.',
+			recoverable: true,
+		},
+		{
+			pattern: /token.*limit/i,
+			message: 'Context window exceeded. Try a model with a larger context window.',
+			recoverable: true,
+		},
+		{
+			pattern: /too.*many.*tokens/i,
+			message: 'Context window exceeded. Try a model with a larger context window.',
+			recoverable: true,
+		},
+	],
+
+	network_error: [
+		{
+			pattern: /ECONNREFUSED/i,
+			message: 'Network error. Check your internet connection.',
+			recoverable: true,
+		},
+		{
+			pattern: /ETIMEDOUT/i,
+			message: 'Network error. Check your internet connection.',
+			recoverable: true,
+		},
+		{
+			pattern: /network.*error/i,
+			message: 'Network error. Check your internet connection.',
+			recoverable: true,
+		},
+		{
+			pattern: /fetch.*failed/i,
+			message: 'Network error. Check your internet connection.',
+			recoverable: true,
+		},
+		{
+			pattern: /ENOTFOUND/i,
+			message: 'Network error. Check your internet connection.',
+			recoverable: true,
+		},
+	],
+
+	permission_denied: [
+		{
+			pattern: /permission.*denied/i,
+			message: 'Permission denied. Check file system permissions.',
+			recoverable: true,
+		},
+		{
+			pattern: /EACCES/i,
+			message: 'Permission denied. Check file system permissions.',
+			recoverable: true,
+		},
+		{
+			pattern: /EPERM/i,
+			message: 'Permission denied. Check file system permissions.',
+			recoverable: true,
+		},
+	],
+
+	agent_crashed: [
+		{
+			pattern: /fatal.*error/i,
+			message: 'Cline process crashed unexpectedly.',
+			recoverable: false,
+		},
+		{
+			pattern: /unhandled.*exception/i,
+			message: 'Cline process crashed unexpectedly.',
+			recoverable: false,
+		},
+		{
+			pattern: /segmentation.*fault/i,
+			message: 'Cline process crashed unexpectedly.',
+			recoverable: false,
+		},
+	],
+};
+
+// ============================================================================
 // SSH Error Patterns
 // ============================================================================
 
@@ -875,6 +1025,7 @@ const patternRegistry = new Map<ToolType, AgentErrorPatterns>([
 	['opencode', OPENCODE_ERROR_PATTERNS],
 	['codex', CODEX_ERROR_PATTERNS],
 	['factory-droid', FACTORY_DROID_ERROR_PATTERNS],
+	['cline', CLINE_ERROR_PATTERNS],
 ]);
 
 /**
@@ -940,7 +1091,10 @@ export function matchErrorPattern(
 					typeof pattern.message === 'function' ? pattern.message(match) : pattern.message;
 
 				// Log detailed info for SSH shell parse errors to help debug
-				if (pattern.pattern.source.includes('parse error') || pattern.pattern.source.includes('syntax error')) {
+				if (
+					pattern.pattern.source.includes('parse error') ||
+					pattern.pattern.source.includes('syntax error')
+				) {
 					logger.info('[ErrorPatterns] Shell parse error detected', 'error-patterns', {
 						errorType,
 						patternSource: pattern.pattern.source,
