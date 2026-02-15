@@ -275,6 +275,18 @@ function getWindowsKnownPaths(binaryName: string): string[] {
 			// npm global installation
 			...npmGlobal('gemini'),
 		],
+		cline: [
+			// npm global installation (primary method for Cline)
+			...npmGlobal('cline'),
+			// Volta - Node version manager
+			path.join(home, '.volta', 'bin', 'cline.exe'),
+			// Possible standalone in local bin
+			...localBin('cline'),
+			// Node.js global
+			path.join(programFiles, 'nodejs', 'cline.cmd'),
+			// Winget installation
+			...wingetLinks('cline'),
+		],
 		aider: [
 			// pip installation
 			...pythonScripts('aider'),
@@ -380,6 +392,18 @@ function getUnixKnownPaths(binaryName: string): string[] {
 			...homebrew('gemini'),
 			// Node version managers (nvm, fnm, volta, etc.)
 			...nodeVersionManagers('gemini'),
+		],
+		cline: [
+			// User local bin
+			...localBin('cline'),
+			// Homebrew paths
+			...homebrew('cline'),
+			// npm global
+			...npmGlobal('cline'),
+			// Volta bin
+			path.join(home, '.volta', 'bin', 'cline'),
+			// Node version managers (nvm, fnm, volta, etc.)
+			...nodeVersionManagers('cline'),
 		],
 		aider: [
 			// pip installation
