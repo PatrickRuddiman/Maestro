@@ -77,6 +77,8 @@ interface TabBarProps {
 	// === Accessibility ===
 	/** Whether colorblind-friendly colors should be used for extension badges */
 	colorBlindMode?: boolean;
+	/** Session-level custom model ID (shown in tab hover overlay when set) */
+	sessionCustomModel?: string;
 }
 
 interface TabProps {
@@ -139,6 +141,8 @@ interface TabProps {
 	totalTabs?: number;
 	/** Tab index in the full list (0-based) */
 	tabIndex?: number;
+	/** Session-level custom model ID (shown in tab hover overlay when set) */
+	sessionCustomModel?: string;
 }
 
 /**
@@ -225,6 +229,7 @@ const Tab = memo(function Tab({
 	onCloseTabsRight,
 	totalTabs,
 	tabIndex,
+	sessionCustomModel,
 }: TabProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const [overlayOpen, setOverlayOpen] = useState(false);
@@ -676,6 +681,13 @@ const Tab = memo(function Tab({
 									>
 										{tab.agentSessionId}
 									</div>
+
+									{/* Custom model display */}
+									{sessionCustomModel && (
+										<div className="px-3 pb-2 text-[10px]" style={{ color: theme.colors.textDim }}>
+											Model: {sessionCustomModel}
+										</div>
+									)}
 								</div>
 							)}
 
@@ -1602,6 +1614,8 @@ function TabBarInner({
 	onUnifiedTabReorder,
 	// Accessibility
 	colorBlindMode,
+	// Session-level metadata
+	sessionCustomModel,
 }: TabBarProps) {
 	const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
 	const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
@@ -2042,6 +2056,7 @@ function TabBarInner({
 										onCloseTabsRight={onCloseTabsRight ? handleTabCloseRight : undefined}
 										totalTabs={unifiedTabs!.length}
 										tabIndex={originalIndex}
+										sessionCustomModel={sessionCustomModel}
 									/>
 								</React.Fragment>
 							);
@@ -2156,6 +2171,7 @@ function TabBarInner({
 									onCloseTabsRight={onCloseTabsRight ? handleTabCloseRight : undefined}
 									totalTabs={tabs.length}
 									tabIndex={originalIndex}
+									sessionCustomModel={sessionCustomModel}
 								/>
 							</React.Fragment>
 						);

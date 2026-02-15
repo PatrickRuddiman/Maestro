@@ -257,7 +257,12 @@ interface MainPanelProps {
 		sessionId: string
 	) => Promise<import('../utils/fileExplorer').FileTreeChanges | undefined>;
 	// Callback to open a saved file in a tab
-	onOpenSavedFileInTab?: (file: { path: string; name: string; content: string; sshRemoteId?: string }) => void;
+	onOpenSavedFileInTab?: (file: {
+		path: string;
+		name: string;
+		content: string;
+		sshRemoteId?: string;
+	}) => void;
 	// File preview navigation
 	canGoBack?: boolean;
 	canGoForward?: boolean;
@@ -1582,6 +1587,8 @@ export const MainPanel = React.memo(
 									onFileTabClose={onFileTabClose}
 									// Accessibility
 									colorBlindMode={colorBlindMode}
+									// Session-level metadata
+									sessionCustomModel={activeSession.customModel}
 								/>
 							)}
 
