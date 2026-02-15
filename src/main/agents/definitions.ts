@@ -321,6 +321,61 @@ export const AGENT_DEFINITIONS: AgentDefinition[] = [
 		],
 	},
 	{
+		id: 'cline',
+		name: 'Cline',
+		binaryName: 'cline',
+		command: 'cline',
+		args: ['--json'], // Base args: JSON output mode
+		requiresPty: false, // Batch mode uses child process
+
+		// Batch mode: cline --json --yolo "prompt"
+		batchModeArgs: ['--yolo'], // YOLO mode for batch (auto-approve all)
+
+		// JSON output
+		jsonOutputArgs: ['--json'],
+
+		// Session resume: --taskId <id>
+		resumeArgs: (sessionId: string) => ['--taskId', sessionId],
+
+		// Read-only/plan mode
+		readOnlyArgs: ['--plan'],
+
+		// Working directory
+		workingDirArgs: (dir: string) => ['--cwd', dir],
+
+		// Image input
+		imageArgs: (imagePath: string) => ['--images', imagePath],
+
+		// Prompt is positional argument (no separator needed)
+		promptArgs: (prompt: string) => [prompt],
+		noPromptSeparator: true,
+
+		// UI config options
+		configOptions: [
+			{
+				key: 'model',
+				type: 'text',
+				label: 'Model',
+				description:
+					'AI model in provider/model format (e.g., openai/gpt-4o, anthropic/claude-sonnet-4)',
+				default: '',
+				argBuilder: (value: string) => {
+					if (value && value.trim()) {
+						return ['--model', value.trim()];
+					}
+					return [];
+				},
+			},
+			{
+				key: 'contextWindow',
+				type: 'number',
+				label: 'Context Window',
+				description: 'Maximum context size in tokens (auto-set based on model)',
+				default: 128000,
+			},
+		],
+	},
+	{
 		id: 'aider',
 		name: 'Aider',
 		binaryName: 'aider',

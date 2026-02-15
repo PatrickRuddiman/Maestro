@@ -103,6 +103,16 @@ export const AGENT_ARTIFACTS: Record<ToolType, string[]> = {
 	terminal: [
 		// Terminal has no agent-specific artifacts
 	],
+	cline: [
+		// Brand references
+		'Cline',
+		'cline',
+		// Model references (supports multiple providers)
+		'Claude',
+		'GPT',
+		'Gemini',
+		'Ollama',
+	],
 };
 
 /**
@@ -137,6 +147,12 @@ export const AGENT_TARGET_NOTES: Record<ToolType, string> = {
     Terminal is a raw shell interface.
     It executes shell commands directly without AI interpretation.
   `,
+	cline: `
+    Cline is an AI coding assistant CLI.
+    It supports multiple AI providers and models (OpenAI, Anthropic, Google, Ollama).
+    It can read and edit files, run commands, and search code.
+    It supports plan mode for read-only operations.
+  `,
 };
 
 /**
@@ -149,6 +165,7 @@ export function getAgentDisplayName(agentType: ToolType): string {
 		codex: 'OpenAI Codex',
 		'factory-droid': 'Factory Droid',
 		terminal: 'Terminal',
+		cline: 'Cline',
 	};
 	return names[agentType] || agentType;
 }

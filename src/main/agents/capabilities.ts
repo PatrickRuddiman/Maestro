@@ -302,6 +302,34 @@ export const AGENT_CAPABILITIES: Record<string, AgentCapabilities> = {
 		supportsContextMerge: true, // Can receive merged context via prompts
 		supportsContextExport: true, // Session files are exportable
 	},
+
+	/**
+	 * Cline - AI coding assistant CLI
+	 *
+	 * Capabilities based on spec research. Cline supports JSON output,
+	 * session resume via --taskId, plan mode, image input, and model selection.
+	 */
+	cline: {
+		supportsResume: true, // --taskId flag
+		supportsReadOnlyMode: true, // --plan flag
+		supportsJsonOutput: true, // --json flag
+		supportsSessionId: true, // Task IDs in output
+		supportsImageInput: true, // --images flag
+		supportsImageInputOnResume: false, // Not supported on resume
+		supportsSlashCommands: false, // No slash command support
+		supportsSessionStorage: true, // Cline stores session data
+		supportsCostTracking: false, // No cost tracking
+		supportsUsageStats: false, // No usage stats
+		supportsBatchMode: true, // --yolo mode
+		requiresPromptToStart: true, // Requires prompt argument
+		supportsStreaming: true, // Streams JSON events
+		supportsResultMessages: true, // Provides result messages
+		supportsModelSelection: true, // --model flag
+		supportsStreamJsonInput: false, // Uses positional arguments
+		supportsThinkingDisplay: true, // Emits thinking content
+		supportsContextMerge: false, // Not yet supported
+		supportsContextExport: false, // Not yet supported
+	},
 };
 
 /**

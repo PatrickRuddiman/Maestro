@@ -114,6 +114,7 @@ export function getProviderDisplayName(toolType: ToolType): string {
 		codex: 'Codex',
 		'factory-droid': 'Factory Droid',
 		terminal: 'Terminal',
+		cline: 'Cline',
 	};
 	return displayNames[toolType] || toolType;
 }
