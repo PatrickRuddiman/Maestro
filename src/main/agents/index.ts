@@ -47,6 +47,13 @@ export {
 	checkBinaryExists,
 } from './path-prober';
 
+// ============ Model Registry ============
+export {
+	type AvailableModel,
+	COMMON_CLINE_MODELS,
+	getContextWindowForModel,
+} from './model-registry';
+
 // ============ Session Storage ============
 export {
 	type AgentSessionOrigin,
