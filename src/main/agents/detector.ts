@@ -276,6 +276,28 @@ export class AgentDetector {
 					return models;
 				}
 
+				case 'cline': {
+					// Cline has no CLI model discovery command — return a static list of common models
+					const clineModels = [
+						'openai/gpt-4o',
+						'openai/gpt-4o-mini',
+						'openai/o1',
+						'openai/o1-mini',
+						'anthropic/claude-sonnet-4',
+						'anthropic/claude-opus-4.6',
+						'anthropic/claude-3-5-sonnet-latest',
+						'google/gemini-2.0-flash',
+						'google/gemini-2.0-pro',
+						'ollama/qwen3:8b',
+						'ollama/llama3.3',
+						'ollama/deepseek-r1',
+					];
+					logger.info(`Returning ${clineModels.length} static models for ${agentId}`, LOG_CONTEXT, {
+						models: clineModels,
+					});
+					return clineModels;
+				}
+
 				default:
 					// For agents without model discovery implemented, return empty array
 					logger.debug(`No model discovery implemented for ${agentId}`, LOG_CONTEXT);
