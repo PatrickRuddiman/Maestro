@@ -546,6 +546,13 @@ export function AgentSessionsBrowser({
 		};
 	}, [aggregateStats]);
 
+	// Memoize formatted timestamp for the viewing session detail header
+	// This avoids calling `new Date().toLocaleString()` twice on every render
+	const formattedViewingSessionTimestamp = useMemo(() => {
+		if (!viewingSession?.timestamp) return '';
+		return new Date(viewingSession.timestamp).toLocaleString();
+	}, [viewingSession?.timestamp]);
+
 	// Keyboard navigation
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (viewingSession) {
@@ -836,7 +843,7 @@ export function AgentSessionsBrowser({
 									<span>•</span>
 									<span
 										className="relative group cursor-default"
-										title={new Date(viewingSession.timestamp).toLocaleString()}
+										title={formattedViewingSessionTimestamp}
 									>
 										{formatRelativeTime(viewingSession.modifiedAt)}
 										<span
@@ -846,7 +853,7 @@ export function AgentSessionsBrowser({
 												color: theme.colors.textMain,
 											}}
 										>
-											{new Date(viewingSession.timestamp).toLocaleString()}
+											{formattedViewingSessionTimestamp}
 										</span>
 									</span>
 								</div>
