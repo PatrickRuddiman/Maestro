@@ -2,6 +2,11 @@ import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { Theme } from '../types';
 
+// Pre-compiled regex patterns (avoid re-creation in render paths)
+const NUMERIC_VALUE_REGEX = /^[($\-]*[\d,]+(\.\d+)?[%)]*$/;
+const NUMERIC_STRIP_REGEX = /[,$%()]/g;
+const SEARCH_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
+
 interface CsvTableRendererProps {
 	content: string;
 	theme: Theme;
@@ -82,7 +87,7 @@ function isNumericValue(value: string): boolean {
 	const trimmed = value.trim();
 	if (trimmed === '') return false;
 	// Match: optional currency/sign prefix, digits with optional commas, optional decimal, optional suffix
-	return /^[($\-]*[\d,]+(\.\d+)?[%)]*$/.test(trimmed);
+	return NUMERIC_VALUE_REGEX.test(trimmed);
 }
 
 /**
@@ -125,8 +130,8 @@ function compareValues(a: string, b: string, direction: SortDirection): number {
 	if (bVal === '') return -1;
 
 	// Try numeric comparison
-	const aNum = parseFloat(aVal.replace(/[,$%()]/g, ''));
-	const bNum = parseFloat(bVal.replace(/[,$%()]/g, ''));
+	const aNum = parseFloat(aVal.replace(NUMERIC_STRIP_REGEX, ''));
+	const bNum = parseFloat(bVal.replace(NUMERIC_STRIP_REGEX, ''));
 
 	if (!isNaN(aNum) && !isNaN(bNum)) {
 		return direction === 'asc' ? aNum - bNum : bNum - aNum;
@@ -139,11 +144,9 @@ function compareValues(a: string, b: string, direction: SortDirection): number {
 
 /**
  * Highlight matching substrings within a cell value.
+ * Accepts a pre-compiled regex to avoid re-creation per cell.
  */
-function highlightMatches(text: string, query: string, accentColor: string): ReactNode {
-	if (!query) return text;
-	const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const regex = new RegExp(`(${escaped})`, 'gi');
+function highlightMatches(text: string, regex: RegExp, accentColor: string): ReactNode {
 	const parts = text.split(regex);
 	if (parts.length === 1) return text;
 	// Use running character offset as key to guarantee uniqueness across
@@ -179,6 +182,13 @@ export function CsvTableRenderer({
 }: CsvTableRendererProps) {
 	const [sort, setSort] = useState<SortState | null>(null);
 	const query = (searchQuery?.trim() ?? '').slice(0, 200);
+
+	// Memoize the search highlight regex — built once per query change, not per cell
+	const searchRegex = useMemo(() => {
+		if (!query) return null;
+		const escaped = query.replace(SEARCH_ESCAPE_REGEX, '\\$&');
+		return new RegExp(`(${escaped})`, 'gi');
+	}, [query]);
 
 	const allRows = useMemo(() => parseCsv(content, delimiter), [content, delimiter]);
 
@@ -364,8 +374,8 @@ export function CsvTableRenderer({
 										}}
 										title={row[colIdx] ?? ''}
 									>
-										{query
-											? highlightMatches(row[colIdx] ?? '', query, theme.colors.accent)
+										{searchRegex
+											? highlightMatches(row[colIdx] ?? '', searchRegex, theme.colors.accent)
 											: (row[colIdx] ?? '')}
 									</td>
 								))}
