@@ -40,6 +40,16 @@ vi.mock('fs', () => ({
 	readFileSync: vi.fn(() => ''),
 }));
 
+// Mock fs/promises module
+vi.mock('fs/promises', () => ({
+	access: vi.fn(() => Promise.resolve()),
+	stat: vi.fn(() => Promise.resolve({ size: 0, isDirectory: () => false })),
+	readdir: vi.fn(() => Promise.resolve([])),
+	readFile: vi.fn(() => Promise.resolve('')),
+	mkdir: vi.fn(() => Promise.resolve()),
+	unlink: vi.fn(() => Promise.resolve()),
+}));
+
 // Mock cliDetection
 vi.mock('../../../main/utils/cliDetection', () => ({
 	isCloudflaredInstalled: vi.fn(() => Promise.resolve(false)),
@@ -813,18 +823,17 @@ describe('Debug Package Collectors', () => {
 
 	describe('collectStorage', () => {
 		it('should collect storage paths and sizes with sanitization', async () => {
-			const fs = await import('fs');
+			const fsPromises = await import('fs/promises');
 			const { app } = await import('electron');
 
 			vi.mocked(app.getPath).mockReturnValue('/mock/userData');
-			vi.mocked(fs.existsSync).mockReturnValue(true);
-			vi.mocked(fs.statSync).mockImplementation((path: any) => {
+			vi.mocked(fsPromises.stat).mockImplementation((path: any) => {
 				if (path.includes('maestro-sessions.json')) {
-					return { size: 1024, isDirectory: () => false } as any;
+					return Promise.resolve({ size: 1024, isDirectory: () => false } as any);
 				}
-				return { size: 0, isDirectory: () => true } as any;
+				return Promise.resolve({ size: 0, isDirectory: () => true } as any);
 			});
-			vi.mocked(fs.readdirSync).mockReturnValue([]);
+			vi.mocked(fsPromises.readdir).mockResolvedValue([]);
 
 			const { collectStorage } = await import('../../../main/debug-package/collectors/storage');
 
@@ -863,44 +872,50 @@ describe('Debug Package Collectors', () => {
 
 	describe('collectGroupChats', () => {
 		it('should collect group chat metadata without message content', async () => {
-			const fs = await import('fs');
+			const fsPromises = await import('fs/promises');
 			const { app } = await import('electron');
 
 			vi.mocked(app.getPath).mockReturnValue('/mock/userData');
-			vi.mocked(fs.existsSync).mockReturnValue(true);
-			vi.mocked(fs.readdirSync).mockReturnValue([
+			vi.mocked(fsPromises.access).mockResolvedValue(undefined);
+			vi.mocked(fsPromises.readdir).mockResolvedValue([
 				'chat-1.json',
 				'chat-1.log.json',
 				'chat-2.json',
 			] as any);
-			vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+			vi.mocked(fsPromises.readFile).mockImplementation((path: any) => {
 				if (path.includes('chat-1.json') && !path.includes('.log')) {
-					return JSON.stringify({
-						id: 'chat-1',
-						name: 'Test Chat',
-						moderatorAgentId: 'claude-code',
-						participants: [
-							{ name: 'Claude', agentId: 'claude-code' },
-							{ name: 'Codex', agentId: 'openai-codex' },
-						],
-						createdAt: Date.now() - 3600000,
-						updatedAt: Date.now(),
-					});
+					return Promise.resolve(
+						JSON.stringify({
+							id: 'chat-1',
+							name: 'Test Chat',
+							moderatorAgentId: 'claude-code',
+							participants: [
+								{ name: 'Claude', agentId: 'claude-code' },
+								{ name: 'Codex', agentId: 'openai-codex' },
+							],
+							createdAt: Date.now() - 3600000,
+							updatedAt: Date.now(),
+						})
+					);
 				}
 				if (path.includes('chat-1.log.json')) {
-					return '{"content":"message 1"}\n{"content":"message 2"}\n{"content":"message 3"}';
+					return Promise.resolve(
+						'{"content":"message 1"}\n{"content":"message 2"}\n{"content":"message 3"}'
+					);
 				}
 				if (path.includes('chat-2.json')) {
-					return JSON.stringify({
-						id: 'chat-2',
-						name: 'Another Chat',
-						moderatorAgentId: 'opencode',
-						participants: [],
-						createdAt: Date.now(),
-						updatedAt: Date.now(),
-					});
+					return Promise.resolve(
+						JSON.stringify({
+							id: 'chat-2',
+							name: 'Another Chat',
+							moderatorAgentId: 'opencode',
+							participants: [],
+							createdAt: Date.now(),
+							updatedAt: Date.now(),
+						})
+					);
 				}
-				return '';
+				return Promise.resolve('');
 			});
 
 			const { collectGroupChats } =
@@ -928,9 +943,9 @@ describe('Debug Package Collectors', () => {
 		});
 
 		it('should handle missing group chats directory', async () => {
-			const fs = await import('fs');
+			const fsPromises = await import('fs/promises');
 
-			vi.mocked(fs.existsSync).mockReturnValue(false);
+			vi.mocked(fsPromises.access).mockRejectedValue(new Error('ENOENT'));
 
 			const { collectGroupChats } =
 				await import('../../../main/debug-package/collectors/group-chats');

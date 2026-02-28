@@ -25,7 +25,7 @@ import type { ToolType, AgentError } from '../../shared/types';
 import type { AgentOutputParser, ParsedEvent } from './agent-output-parser';
 import { captureException } from '../utils/sentry';
 import { getErrorPatterns, matchErrorPattern } from './error-patterns';
-import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -89,17 +89,24 @@ function getModelContextWindow(model: string): number {
 /**
  * Read Codex configuration from ~/.codex/config.toml
  * Returns the model name and context window override if set
+ *
+ * Uses async fs.promises and caches the result at module level.
+ * Cache is invalidated after CODEX_CONFIG_CACHE_TTL_MS.
  */
-function readCodexConfig(): { model?: string; contextWindow?: number } {
+const CODEX_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let codexConfigCache: { model?: string; contextWindow?: number } | null = null;
+let codexConfigCacheTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function readCodexConfigAsync(): Promise<{ model?: string; contextWindow?: number }> {
+	if (codexConfigCache) {
+		return codexConfigCache;
+	}
+
 	try {
 		const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 		const configPath = path.join(codexHome, 'config.toml');
 
-		if (!fs.existsSync(configPath)) {
-			return {};
-		}
-
-		const content = fs.readFileSync(configPath, 'utf8');
+		const content = await fsPromises.readFile(configPath, 'utf8');
 		const result: { model?: string; contextWindow?: number } = {};
 
 		// Simple TOML parsing for the fields we care about
@@ -115,10 +122,54 @@ function readCodexConfig(): { model?: string; contextWindow?: number } {
 			result.contextWindow = parseInt(windowMatch[1], 10);
 		}
 
+		codexConfigCache = result;
+
+		// Schedule cache invalidation
+		if (codexConfigCacheTimer) {
+			clearTimeout(codexConfigCacheTimer);
+		}
+		codexConfigCacheTimer = setTimeout(() => {
+			codexConfigCache = null;
+			codexConfigCacheTimer = null;
+		}, CODEX_CONFIG_CACHE_TTL_MS);
+
 		return result;
 	} catch {
-		// Config file doesn't exist or can't be read - use defaults
+		// Config file doesn't exist or can't be read - cache empty result
+		codexConfigCache = {};
+
+		if (codexConfigCacheTimer) {
+			clearTimeout(codexConfigCacheTimer);
+		}
+		codexConfigCacheTimer = setTimeout(() => {
+			codexConfigCache = null;
+			codexConfigCacheTimer = null;
+		}, CODEX_CONFIG_CACHE_TTL_MS);
+
 		return {};
+	}
+}
+
+/**
+ * Read Codex config synchronously from cache, or return defaults.
+ * The async read is kicked off as a side effect to populate the cache
+ * for subsequent calls.
+ */
+function readCodexConfigCached(): { model?: string; contextWindow?: number } {
+	if (codexConfigCache) {
+		return codexConfigCache;
+	}
+	// Kick off async read to populate cache for next time
+	readCodexConfigAsync().catch(() => {});
+	return {};
+}
+
+/** Exported for testing: clear the module-level config cache */
+export function clearCodexConfigCache(): void {
+	codexConfigCache = null;
+	if (codexConfigCacheTimer) {
+		clearTimeout(codexConfigCacheTimer);
+		codexConfigCacheTimer = null;
 	}
 }
 
@@ -191,8 +242,8 @@ export class CodexOutputParser implements AgentOutputParser {
 	private lastToolName: string | null = null;
 
 	constructor() {
-		// Read config once at initialization
-		const config = readCodexConfig();
+		// Read config from cache (populated async) — defaults used if not yet loaded
+		const config = readCodexConfigCached();
 		this.model = config.model || 'gpt-5.2-codex-max';
 
 		// Priority: 1) explicit model_context_window in config, 2) lookup by model name

@@ -247,16 +247,30 @@ export function registerTabNamingHandlers(deps: TabNamingHandlerDependencies): v
 						// Spawn the process
 						// When using SSH with stdin, pass the flag so ChildProcessSpawner
 						// sends the prompt via stdin instead of command line args
-						processManager.spawn({
-							sessionId,
-							toolType: config.agentType,
-							cwd,
-							command,
-							args: finalArgs,
-							prompt: fullPrompt,
-							customEnvVars,
-							sendPromptViaStdin: shouldSendPromptViaStdin,
-						});
+						processManager
+							.spawn({
+								sessionId,
+								toolType: config.agentType,
+								cwd,
+								command,
+								args: finalArgs,
+								prompt: fullPrompt,
+								customEnvVars,
+								sendPromptViaStdin: shouldSendPromptViaStdin,
+							})
+							.catch((err: unknown) => {
+								if (!resolved) {
+									resolved = true;
+									clearTimeout(timeoutId);
+									processManager.off('data', onData);
+									processManager.off('exit', onExit);
+									logger.error('Tab naming spawn failed', LOG_CONTEXT, {
+										sessionId,
+										error: String(err),
+									});
+									resolve(null);
+								}
+							});
 					});
 				} catch (error) {
 					logger.error('Tab naming request failed', LOG_CONTEXT, {

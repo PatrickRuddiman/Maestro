@@ -548,16 +548,16 @@ describe('ChildProcessSpawner', () => {
 	});
 
 	describe('image handling with non-stream-json agents', () => {
-		it('should use file-based image args for agents without stream-json support', () => {
+		it('should use file-based image args for agents without stream-json support', async () => {
 			// Override capabilities for this test
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 			} as any);
-			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+			vi.mocked(saveImageToTempFile).mockResolvedValueOnce('/tmp/maestro-image-0.png');
 
 			const { spawner } = createTestContext();
 
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'codex',
 					command: 'codex',
@@ -577,16 +577,16 @@ describe('ChildProcessSpawner', () => {
 	});
 
 	describe('resume mode with prompt-embed image handling', () => {
-		it('should embed image paths in prompt when resuming with imageResumeMode=prompt-embed', () => {
+		it('should embed image paths in prompt when resuming with imageResumeMode=prompt-embed', async () => {
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 				imageResumeMode: 'prompt-embed',
 			} as any);
-			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+			vi.mocked(saveImageToTempFile).mockResolvedValueOnce('/tmp/maestro-image-0.png');
 
 			const { spawner } = createTestContext();
 
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'codex',
 					command: 'codex',
@@ -608,17 +608,17 @@ describe('ChildProcessSpawner', () => {
 			expect(promptArg).toContain('describe this image');
 		});
 
-		it('should use -i flag for initial spawn even when imageResumeMode=prompt-embed', () => {
+		it('should use -i flag for initial spawn even when imageResumeMode=prompt-embed', async () => {
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 				imageResumeMode: 'prompt-embed',
 			} as any);
-			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+			vi.mocked(saveImageToTempFile).mockResolvedValueOnce('/tmp/maestro-image-0.png');
 
 			const { spawner } = createTestContext();
 
 			// Args do NOT contain 'resume' — this is an initial spawn
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'codex',
 					command: 'codex',
@@ -635,16 +635,16 @@ describe('ChildProcessSpawner', () => {
 			expect(spawnArgs).toContain('/tmp/maestro-image-0.png');
 		});
 
-		it('should send modified prompt via stdin in resume mode when promptViaStdin is true', () => {
+		it('should send modified prompt via stdin in resume mode when promptViaStdin is true', async () => {
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 				imageResumeMode: 'prompt-embed',
 			} as any);
-			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+			vi.mocked(saveImageToTempFile).mockResolvedValueOnce('/tmp/maestro-image-0.png');
 
 			const { spawner } = createTestContext();
 
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'codex',
 					command: 'codex',
@@ -669,18 +669,18 @@ describe('ChildProcessSpawner', () => {
 			expect(writtenData).toContain('describe this image');
 		});
 
-		it('should handle multiple images in resume mode', () => {
+		it('should handle multiple images in resume mode', async () => {
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 				imageResumeMode: 'prompt-embed',
 			} as any);
 			vi.mocked(saveImageToTempFile)
-				.mockReturnValueOnce('/tmp/maestro-image-0.png')
-				.mockReturnValueOnce('/tmp/maestro-image-1.jpg');
+				.mockResolvedValueOnce('/tmp/maestro-image-0.png')
+				.mockResolvedValueOnce('/tmp/maestro-image-1.jpg');
 
 			const { spawner } = createTestContext();
 
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'codex',
 					command: 'codex',
@@ -699,17 +699,17 @@ describe('ChildProcessSpawner', () => {
 			expect(promptArg).toContain('compare these images');
 		});
 
-		it('should NOT use prompt-embed when imageResumeMode is undefined', () => {
+		it('should NOT use prompt-embed when imageResumeMode is undefined', async () => {
 			vi.mocked(getAgentCapabilities).mockReturnValueOnce({
 				supportsStreamJsonInput: false,
 				imageResumeMode: undefined,
 			} as any);
-			vi.mocked(saveImageToTempFile).mockReturnValueOnce('/tmp/maestro-image-0.png');
+			vi.mocked(saveImageToTempFile).mockResolvedValueOnce('/tmp/maestro-image-0.png');
 
 			const { spawner } = createTestContext();
 
 			// Even with 'resume' in args, if imageResumeMode is undefined, use -i flag
-			spawner.spawn(
+			await spawner.spawn(
 				createBaseConfig({
 					toolType: 'opencode',
 					command: 'opencode',
