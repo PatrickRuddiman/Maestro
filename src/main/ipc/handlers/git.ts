@@ -746,8 +746,13 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 				}
 
 				// Local execution (existing code)
-				// Check for uncommitted changes
-				const statusResult = await execFileNoThrow('git', ['status', '--porcelain'], worktreePath);
+				// Check for uncommitted changes and branch existence in parallel
+				// (both are independent read-only git operations)
+				const [statusResult, branchExistsResult] = await Promise.all([
+					execFileNoThrow('git', ['status', '--porcelain'], worktreePath),
+					execFileNoThrow('git', ['rev-parse', '--verify', branchName], worktreePath),
+				]);
+
 				if (statusResult.exitCode !== 0) {
 					return {
 						success: false,
@@ -765,12 +770,7 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 					};
 				}
 
-				// Check if branch exists
-				const branchExistsResult = await execFileNoThrow(
-					'git',
-					['rev-parse', '--verify', branchName],
-					worktreePath
-				);
+				// Check if branch exists (result already available from parallel call)
 				const branchExists = branchExistsResult.exitCode === 0;
 
 				let checkoutResult;
@@ -880,8 +880,12 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 			const ghCommand = await resolveGhPath(ghPath);
 			logger.debug(`Checking gh CLI at: ${ghCommand}`, LOG_CONTEXT);
 
-			// Check if gh is installed by running gh --version
-			const versionResult = await execFileNoThrow(ghCommand, ['--version']);
+			// Run version and auth checks in parallel (both are independent read-only operations)
+			const [versionResult, authResult] = await Promise.all([
+				execFileNoThrow(ghCommand, ['--version']),
+				execFileNoThrow(ghCommand, ['auth', 'status']),
+			]);
+
 			if (versionResult.exitCode !== 0) {
 				logger.warn(
 					`gh CLI not found at ${ghCommand}: exit=${versionResult.exitCode}, stderr=${versionResult.stderr}`,
@@ -893,8 +897,6 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 			}
 			logger.debug(`gh CLI found: ${versionResult.stdout.trim().split('\n')[0]}`, LOG_CONTEXT);
 
-			// Check if gh is authenticated by running gh auth status
-			const authResult = await execFileNoThrow(ghCommand, ['auth', 'status']);
 			const authenticated = authResult.exitCode === 0;
 			logger.debug(
 				`gh auth status: ${authenticated ? 'authenticated' : 'not authenticated'}`,
@@ -924,13 +926,14 @@ export function registerGitHandlers(deps: GitHandlerDependencies): void {
 				}
 			}
 
-			// Fallback: check if main or master exists locally
-			const mainResult = await execFileNoThrow('git', ['rev-parse', '--verify', 'main'], cwd);
+			// Fallback: check if main or master exists locally (parallel since both are independent reads)
+			const [mainResult, masterResult] = await Promise.all([
+				execFileNoThrow('git', ['rev-parse', '--verify', 'main'], cwd),
+				execFileNoThrow('git', ['rev-parse', '--verify', 'master'], cwd),
+			]);
 			if (mainResult.exitCode === 0) {
 				return { branch: 'main' };
 			}
-
-			const masterResult = await execFileNoThrow('git', ['rev-parse', '--verify', 'master'], cwd);
 			if (masterResult.exitCode === 0) {
 				return { branch: 'master' };
 			}

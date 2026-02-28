@@ -2421,20 +2421,33 @@ export function Component() {
 		});
 
 		it('should fail when worktree has uncommitted changes', async () => {
-			vi.mocked(execFile.execFileNoThrow).mockResolvedValueOnce({
-				// git status --porcelain (has uncommitted changes)
-				stdout: 'M  modified.ts\nA  added.ts\n?? untracked.ts\n',
-				stderr: '',
-				exitCode: 0,
-			});
+			vi.mocked(execFile.execFileNoThrow)
+				.mockResolvedValueOnce({
+					// git status --porcelain (has uncommitted changes)
+					stdout: 'M  modified.ts\nA  added.ts\n?? untracked.ts\n',
+					stderr: '',
+					exitCode: 0,
+				})
+				.mockResolvedValueOnce({
+					// git rev-parse --verify branchName (runs in parallel, result unused when status shows changes)
+					stdout: '',
+					stderr: '',
+					exitCode: 0,
+				});
 
 			const handler = handlers.get('git:worktreeCheckout');
 			const result = await handler!({} as any, '/worktree/path', 'feature-branch', false);
 
-			expect(execFile.execFileNoThrow).toHaveBeenCalledTimes(1);
+			// Both calls run in parallel via Promise.all
+			expect(execFile.execFileNoThrow).toHaveBeenCalledTimes(2);
 			expect(execFile.execFileNoThrow).toHaveBeenCalledWith(
 				'git',
 				['status', '--porcelain'],
+				'/worktree/path'
+			);
+			expect(execFile.execFileNoThrow).toHaveBeenCalledWith(
+				'git',
+				['rev-parse', '--verify', 'feature-branch'],
 				'/worktree/path'
 			);
 			expect(result).toEqual({
@@ -2901,18 +2914,27 @@ export function Component() {
 		});
 
 		it('should return installed: false when gh is not installed', async () => {
-			vi.mocked(execFile.execFileNoThrow).mockResolvedValueOnce({
-				// gh --version fails
-				stdout: '',
-				stderr: 'command not found: gh',
-				exitCode: 127,
-			});
+			vi.mocked(execFile.execFileNoThrow)
+				.mockResolvedValueOnce({
+					// gh --version fails
+					stdout: '',
+					stderr: 'command not found: gh',
+					exitCode: 127,
+				})
+				.mockResolvedValueOnce({
+					// gh auth status (runs in parallel but result ignored when version fails)
+					stdout: '',
+					stderr: '',
+					exitCode: 1,
+				});
 
 			const handler = handlers.get('git:checkGhCli');
 			const result = await handler!({} as any);
 
-			expect(execFile.execFileNoThrow).toHaveBeenCalledTimes(1);
+			// Both calls run in parallel via Promise.all
+			expect(execFile.execFileNoThrow).toHaveBeenCalledTimes(2);
 			expect(execFile.execFileNoThrow).toHaveBeenCalledWith('gh', ['--version']);
+			expect(execFile.execFileNoThrow).toHaveBeenCalledWith('gh', ['auth', 'status']);
 			expect(result).toEqual({
 				installed: false,
 				authenticated: false,
