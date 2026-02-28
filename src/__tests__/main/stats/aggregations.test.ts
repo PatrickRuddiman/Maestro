@@ -512,12 +512,13 @@ describe('Time-range filtering works correctly for all ranges', () => {
 			expect(totalsCall).toBeDefined();
 			expect(totalsCall![0]).toContain('WHERE start_time >= ?');
 
-			// Verify the byAgent query includes the filter
+			// Verify the byAgent query includes the filter and INDEXED BY hint
 			const byAgentCall = prepareCalls.find((call) =>
 				(call[0] as string).includes('GROUP BY agent_type')
 			);
 			expect(byAgentCall).toBeDefined();
 			expect(byAgentCall![0]).toContain('WHERE start_time >= ?');
+			expect(byAgentCall![0]).toContain('INDEXED BY idx_query_agent_time');
 
 			// Verify the bySource query includes the filter
 			const bySourceCall = prepareCalls.find((call) =>
@@ -1215,7 +1216,7 @@ describe('Aggregation queries return correct calculations', () => {
 			expect(totalsCall).toBeDefined();
 		});
 
-		it('should GROUP BY agent_type for byAgent breakdown', async () => {
+		it('should GROUP BY agent_type for byAgent breakdown with INDEXED BY hint', async () => {
 			mockStatement.get.mockReturnValue({ count: 0, total_duration: 0 });
 			mockStatement.all.mockReturnValue([]);
 
@@ -1233,6 +1234,7 @@ describe('Aggregation queries return correct calculations', () => {
 			);
 
 			expect(byAgentCall).toBeDefined();
+			expect(byAgentCall![0]).toContain('INDEXED BY idx_query_agent_time');
 		});
 
 		it('should GROUP BY source for bySource breakdown', async () => {

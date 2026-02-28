@@ -42,7 +42,7 @@ function queryByAgent(
 		.prepare(
 			`
       SELECT agent_type, COUNT(*) as count, SUM(duration) as duration
-      FROM query_events
+      FROM query_events INDEXED BY idx_query_agent_time
       WHERE start_time >= ?
       GROUP BY agent_type
     `
