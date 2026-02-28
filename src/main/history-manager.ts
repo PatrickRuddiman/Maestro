@@ -439,40 +439,64 @@ export class HistoryManager {
 	/**
 	 * Update sessionName for all entries matching a given agentSessionId.
 	 * This is used when a tab is renamed to retroactively update past history entries.
+	 * Uses Promise.all() to parallelize file reads and early-exit once the target is found.
 	 */
 	async updateSessionNameByClaudeSessionId(
 		agentSessionId: string,
 		sessionName: string
 	): Promise<number> {
 		const sessions = await this.listSessionsWithHistory();
+		if (sessions.length === 0) return 0;
+
+		// Read all session files in parallel since they're independent
+		const fileReadResults = await Promise.all(
+			sessions.map(async (sessionId) => {
+				const filePath = this.getSessionFilePath(sessionId);
+				try {
+					if (!(await fileExists(filePath))) return null;
+					const raw = await fs.promises.readFile(filePath, 'utf-8');
+					return { sessionId, filePath, data: JSON.parse(raw) as HistoryFileData };
+				} catch (error) {
+					logger.warn(`Failed to read history for session ${sessionId}: ${error}`, LOG_CONTEXT);
+					captureException(error, { operation: 'history:updateSessionName:read', sessionId });
+					return null;
+				}
+			})
+		);
+
 		let updatedCount = 0;
 
-		for (const sessionId of sessions) {
-			const filePath = this.getSessionFilePath(sessionId);
-			if (!(await fileExists(filePath))) continue;
+		// Process results and early-exit once the target agentSessionId is found and updated
+		for (const result of fileReadResults) {
+			if (!result) continue;
 
-			try {
-				const data: HistoryFileData = JSON.parse(await fs.promises.readFile(filePath, 'utf-8'));
-				let modified = false;
+			const { sessionId, filePath, data } = result;
+			let modified = false;
 
-				for (const entry of data.entries) {
-					if (entry.agentSessionId === agentSessionId && entry.sessionName !== sessionName) {
-						entry.sessionName = sessionName;
-						modified = true;
-						updatedCount++;
-					}
+			for (const entry of data.entries) {
+				if (entry.agentSessionId === agentSessionId && entry.sessionName !== sessionName) {
+					entry.sessionName = sessionName;
+					modified = true;
+					updatedCount++;
 				}
+			}
 
-				if (modified) {
+			if (modified) {
+				try {
 					await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 					logger.debug(
 						`Updated ${updatedCount} entries for agentSessionId ${agentSessionId} in session ${sessionId}`,
 						LOG_CONTEXT
 					);
+				} catch (error) {
+					logger.error(
+						`Failed to write history after sessionName update for session ${sessionId}: ${error}`,
+						LOG_CONTEXT
+					);
+					captureException(error, { operation: 'history:updateSessionName:write', sessionId });
 				}
-			} catch (error) {
-				logger.warn(`Failed to update sessionName in session ${sessionId}: ${error}`, LOG_CONTEXT);
-				captureException(error, { operation: 'history:updateSessionName', sessionId });
+				// Early exit: agentSessionId entries are within a single session file
+				break;
 			}
 		}
 
