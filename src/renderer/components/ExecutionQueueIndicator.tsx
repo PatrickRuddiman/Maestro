@@ -1,5 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { ListOrdered, Command, MessageSquare } from 'lucide-react';
+import { useDebouncedCallback } from '../hooks/utils/useThrottle';
 import type { Session, Theme } from '../types';
 
 interface ExecutionQueueIndicatorProps {
@@ -13,26 +14,36 @@ interface ExecutionQueueIndicatorProps {
  * Appears above the input area when items are queued.
  * Clicking opens the ExecutionQueueBrowser modal for full queue management.
  */
-export function ExecutionQueueIndicator({ session, theme, onClick }: ExecutionQueueIndicatorProps) {
+export const ExecutionQueueIndicator = memo(function ExecutionQueueIndicator({
+	session,
+	theme,
+	onClick,
+}: ExecutionQueueIndicatorProps) {
 	const queue = session.executionQueue || [];
 	const containerRef = useRef<HTMLButtonElement>(null);
 	const [maxVisiblePills, setMaxVisiblePills] = useState(3);
 
-	// Count items by type
-	const messageCount = queue.filter((item) => item.type === 'message').length;
-	const commandCount = queue.filter((item) => item.type === 'command').length;
+	// Memoize queue-derived calculations to avoid recomputing on every render
+	const { messageCount, commandCount, tabCounts, tabNames } = useMemo(() => {
+		const msgCount = queue.filter((item) => item.type === 'message').length;
+		const cmdCount = queue.filter((item) => item.type === 'command').length;
 
-	// Group by tab to show tab-specific counts
-	const tabCounts = queue.reduce(
-		(acc, item) => {
-			const tabName = item.tabName || 'Unknown';
-			acc[tabName] = (acc[tabName] || 0) + 1;
-			return acc;
-		},
-		{} as Record<string, number>
-	);
+		const counts = queue.reduce(
+			(acc, item) => {
+				const tabName = item.tabName || 'Unknown';
+				acc[tabName] = (acc[tabName] || 0) + 1;
+				return acc;
+			},
+			{} as Record<string, number>
+		);
 
-	const tabNames = Object.keys(tabCounts);
+		return {
+			messageCount: msgCount,
+			commandCount: cmdCount,
+			tabCounts: counts,
+			tabNames: Object.keys(counts),
+		};
+	}, [queue]);
 
 	// Calculate how many pills we can show and their max width based on available space
 	const [maxPillWidth, setMaxPillWidth] = useState<number | null>(null);
@@ -94,21 +105,27 @@ export function ExecutionQueueIndicator({ session, theme, onClick }: ExecutionQu
 		setMaxPillWidth(pillWidth);
 	}, [tabNames.length]);
 
+	// Debounce the resize callback to avoid excessive recalculations
+	const { debouncedCallback: debouncedCalculateMaxPills } = useDebouncedCallback(
+		calculateMaxPills,
+		150
+	);
+
 	// Use ResizeObserver to recalculate when container size changes
 	useEffect(() => {
 		if (!containerRef.current) return;
 
 		const observer = new ResizeObserver(() => {
-			calculateMaxPills();
+			debouncedCalculateMaxPills();
 		});
 
 		observer.observe(containerRef.current);
 
-		// Initial calculation
+		// Initial calculation (not debounced)
 		calculateMaxPills();
 
 		return () => observer.disconnect();
-	}, [calculateMaxPills, queue.length, tabNames.length]);
+	}, [calculateMaxPills, debouncedCalculateMaxPills, queue.length, tabNames.length]);
 
 	if (queue.length === 0) {
 		return null;
@@ -188,4 +205,4 @@ export function ExecutionQueueIndicator({ session, theme, onClick }: ExecutionQu
 			<span className="text-xs opacity-50 flex-shrink-0 whitespace-nowrap">Click to view</span>
 		</button>
 	);
-}
+});
