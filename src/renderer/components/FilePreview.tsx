@@ -276,6 +276,17 @@ const LARGE_FILE_TOKEN_SKIP_THRESHOLD = 1024 * 1024; // 1MB
 // Files larger than this will have content truncated for syntax highlighting
 const LARGE_FILE_PREVIEW_LIMIT = 100 * 1024; // 100KB for syntax highlighting
 
+// Pre-compiled regex patterns (module-level to avoid recreation on each render/call)
+const OPEN_TASK_REGEX = /^[\s]*[-*]\s*\[\s*\]/gm;
+const CLOSED_TASK_REGEX = /^[\s]*[-*]\s*\[[xX]\]/gm;
+const CODE_FENCE_REGEX = /^(`{3,}|~{3,})/;
+const ATX_HEADING_REGEX = /^(#{1,6})\s+(.+)$/;
+const HIGHLIGHT_TEST_REGEX = /==([^=]+)==/g;
+const HIGHLIGHT_MATCH_REGEX = /==([^=]+)==/g;
+const LANGUAGE_CLASS_REGEX = /language-(\w+)/;
+const FILE_URL_REGEX = /^file:\/\//;
+const SEARCH_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
+
 // Format date/time for display
 const formatDateTime = (isoString: string): string => {
 	const date = new Date(isoString);
@@ -291,8 +302,8 @@ const formatDateTime = (isoString: string): string => {
 // Count markdown tasks (checkboxes)
 const countMarkdownTasks = (content: string): { open: number; closed: number } => {
 	// Match markdown checkboxes: - [ ] or - [x] (also * [ ] and * [x])
-	const openMatches = content.match(/^[\s]*[-*]\s*\[\s*\]/gm);
-	const closedMatches = content.match(/^[\s]*[-*]\s*\[[xX]\]/gm);
+	const openMatches = content.match(OPEN_TASK_REGEX);
+	const closedMatches = content.match(CLOSED_TASK_REGEX);
 	return {
 		open: openMatches?.length || 0,
 		closed: closedMatches?.length || 0,
@@ -315,7 +326,7 @@ const extractHeadings = (content: string): TocEntry[] => {
 
 	for (const line of lines) {
 		// Track code fence boundaries (``` or ~~~, optionally with language specifier)
-		if (/^(`{3,}|~{3,})/.test(line)) {
+		if (CODE_FENCE_REGEX.test(line)) {
 			inCodeFence = !inCodeFence;
 			continue;
 		}
@@ -326,7 +337,7 @@ const extractHeadings = (content: string): TocEntry[] => {
 		}
 
 		// Match ATX-style headings (# H1, ## H2, etc.)
-		const match = line.match(/^(#{1,6})\s+(.+)$/);
+		const match = line.match(ATX_HEADING_REGEX);
 		if (match) {
 			const level = match[1].length;
 			const text = match[2].trim();
@@ -573,14 +584,16 @@ function remarkHighlight() {
 	return (tree: any) => {
 		visit(tree, 'text', (node: any, index: number | null | undefined, parent: any) => {
 			const text = node.value;
-			const regex = /==([^=]+)==/g;
 
-			if (!regex.test(text)) return;
+			// Reset lastIndex since we reuse the module-level regex
+			HIGHLIGHT_TEST_REGEX.lastIndex = 0;
+			if (!HIGHLIGHT_TEST_REGEX.test(text)) return;
 			if (index === null || index === undefined || !parent) return;
 
 			const parts: any[] = [];
 			let lastIndex = 0;
-			const matches = text.matchAll(/==([^=]+)==/g);
+			// Use a fresh regex for matchAll since it needs its own state
+			const matches = text.matchAll(HIGHLIGHT_MATCH_REGEX);
 
 			for (const match of matches) {
 				const matchIndex = match.index!;
@@ -816,6 +829,16 @@ export const FilePreview = React.memo(
 			return extractHeadings(file.content);
 		}, [isMarkdown, file?.content]);
 
+		// Memoize formatted dates to avoid redundant Date parsing and toLocaleString on each render
+		const formattedModifiedAt = useMemo(
+			() => (fileStats?.modifiedAt ? formatDateTime(fileStats.modifiedAt) : ''),
+			[fileStats?.modifiedAt]
+		);
+		const formattedCreatedAt = useMemo(
+			() => (fileStats?.createdAt ? formatDateTime(fileStats.createdAt) : ''),
+			[fileStats?.createdAt]
+		);
+
 		const scrollMarkdownToBoundary = useCallback((direction: 'top' | 'bottom') => {
 			// Use contentRef which is the actual scrollable container
 			const container = contentRef.current;
@@ -887,8 +910,8 @@ export const FilePreview = React.memo(
 										targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
 									}
 								} else if (href) {
-									if (/^file:\/\//.test(href)) {
-										window.maestro.shell.openPath(href.replace(/^file:\/\//, ''));
+									if (FILE_URL_REGEX.test(href)) {
+										window.maestro.shell.openPath(href.replace(FILE_URL_REGEX, ''));
 									} else {
 										window.maestro.shell.openExternal(href);
 									}
@@ -909,7 +932,7 @@ export const FilePreview = React.memo(
 
 					if (codeElement?.props) {
 						const { className, children: codeChildren } = codeElement.props;
-						const match = (className || '').match(/language-(\w+)/);
+						const match = (className || '').match(LANGUAGE_CLASS_REGEX);
 						const lang = match ? match[1] : 'text';
 						const codeContent = String(codeChildren).replace(/\n$/, '');
 
@@ -987,9 +1010,7 @@ export const FilePreview = React.memo(
 				// Strip event handler attributes (e.g. onToggle) that rehype-raw may
 				// pass through as strings from AI-generated HTML, which React rejects.
 				// Fixes MAESTRO-8Q
-				details: ({ node: _node, onToggle: _onToggle, ...props }: any) => (
-					<details {...props} />
-				),
+				details: ({ node: _node, onToggle: _onToggle, ...props }: any) => <details {...props} />,
 			}),
 			[onFileClick, theme, cwd, file, showRemoteImages, sshRemoteId]
 		);
@@ -1279,7 +1300,7 @@ export const FilePreview = React.memo(
 			}
 
 			// Escape regex special characters
-			const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const escapedQuery = searchQuery.replace(SEARCH_ESCAPE_REGEX, '\\$&');
 			const regex = new RegExp(escapedQuery, 'gi');
 			const matchElements: HTMLElement[] = [];
 
@@ -1364,7 +1385,7 @@ export const FilePreview = React.memo(
 			}
 
 			const container = markdownContainerRef.current;
-			const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const escapedQuery = searchQuery.replace(SEARCH_ESCAPE_REGEX, '\\$&');
 			const searchRegex = new RegExp(escapedQuery, 'gi');
 
 			// Check if CSS Custom Highlight API is available
@@ -1490,13 +1511,17 @@ export const FilePreview = React.memo(
 					} else {
 						// Fallback: copy the data URL if image copy fails
 						const fallbackOk = await safeClipboardWrite(file.content);
-						setCopyNotificationMessage(fallbackOk ? 'Image URL Copied to Clipboard' : 'Failed to Copy Image');
+						setCopyNotificationMessage(
+							fallbackOk ? 'Image URL Copied to Clipboard' : 'Failed to Copy Image'
+						);
 					}
 				} catch (err) {
 					captureException(err);
 					// Fallback: copy the data URL if fetch/blob fails
 					const fallbackOk = await safeClipboardWrite(file.content);
-					setCopyNotificationMessage(fallbackOk ? 'Image URL Copied to Clipboard' : 'Failed to Copy Image');
+					setCopyNotificationMessage(
+						fallbackOk ? 'Image URL Copied to Clipboard' : 'Failed to Copy Image'
+					);
 				}
 			} else {
 				// For text files, copy the content
@@ -1582,7 +1607,7 @@ export const FilePreview = React.memo(
 			}
 
 			const content = editContent;
-			const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const escapedQuery = searchQuery.replace(SEARCH_ESCAPE_REGEX, '\\$&');
 			const regex = new RegExp(escapedQuery, 'gi');
 
 			// Find all matches and their positions
@@ -1967,15 +1992,11 @@ export const FilePreview = React.memo(
 									<>
 										<div className="text-[10px]" style={{ color: theme.colors.textDim }}>
 											<span className="opacity-60">Modified:</span>{' '}
-											<span style={{ color: theme.colors.textMain }}>
-												{formatDateTime(fileStats.modifiedAt)}
-											</span>
+											<span style={{ color: theme.colors.textMain }}>{formattedModifiedAt}</span>
 										</div>
 										<div className="text-[10px]" style={{ color: theme.colors.textDim }}>
 											<span className="opacity-60">Created:</span>{' '}
-											<span style={{ color: theme.colors.textMain }}>
-												{formatDateTime(fileStats.createdAt)}
-											</span>
+											<span style={{ color: theme.colors.textMain }}>{formattedCreatedAt}</span>
 										</div>
 									</>
 								)}
