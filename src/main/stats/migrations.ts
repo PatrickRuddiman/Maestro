@@ -25,6 +25,7 @@ import {
 	CREATE_SESSION_LIFECYCLE_SQL,
 	CREATE_SESSION_LIFECYCLE_INDEXES_SQL,
 	CREATE_COMPOUND_INDEXES_SQL,
+	CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL,
 	runStatements,
 } from './schema';
 import { LOG_CONTEXT } from './utils';
@@ -59,6 +60,12 @@ export function getMigrations(): Migration[] {
 			version: 4,
 			description: 'Add compound indexes on query_events for dashboard query performance',
 			up: (db) => migrateV4(db),
+		},
+		{
+			version: 5,
+			description:
+				'Add optimized reverse compound index (agent_type, start_time) for equality+range queries',
+			up: (db) => migrateV5(db),
 		},
 	];
 }
@@ -246,4 +253,19 @@ function migrateV4(db: Database.Database): void {
 	runStatements(db, CREATE_COMPOUND_INDEXES_SQL);
 
 	logger.debug('Added compound indexes on query_events', LOG_CONTEXT);
+}
+
+/**
+ * Migration v5: Add optimized reverse compound index (agent_type, start_time)
+ *
+ * The v4 compound indexes use (start_time, column) order, but queries like
+ * `WHERE start_time >= ? AND agent_type = ?` can't efficiently use the second
+ * column after a range scan on the first. This reverse index puts the equality
+ * column first, allowing SQLite to seek to the agent type then range-scan on
+ * start_time.
+ */
+function migrateV5(db: Database.Database): void {
+	runStatements(db, CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL);
+
+	logger.debug('Added optimized reverse compound index (agent_type, start_time)', LOG_CONTEXT);
 }

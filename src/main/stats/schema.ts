@@ -57,7 +57,8 @@ export const CREATE_QUERY_EVENTS_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_project_path ON query_events(project_path);
   CREATE INDEX IF NOT EXISTS idx_query_time_agent ON query_events(start_time, agent_type);
   CREATE INDEX IF NOT EXISTS idx_query_time_project ON query_events(start_time, project_path);
-  CREATE INDEX IF NOT EXISTS idx_query_time_source ON query_events(start_time, source)
+  CREATE INDEX IF NOT EXISTS idx_query_time_source ON query_events(start_time, source);
+  CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time)
 `;
 
 // ============================================================================
@@ -135,6 +136,19 @@ export const CREATE_COMPOUND_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_time_agent ON query_events(start_time, agent_type);
   CREATE INDEX IF NOT EXISTS idx_query_time_project ON query_events(start_time, project_path);
   CREATE INDEX IF NOT EXISTS idx_query_time_source ON query_events(start_time, source)
+`;
+
+// ============================================================================
+// Optimized Compound Indexes (Migration v5)
+//
+// Reverse compound index: equality column first, then range column.
+// For queries like `WHERE agent_type = ? AND start_time >= ?`, SQLite can seek
+// to the agent_type value then range-scan start_time, instead of scanning the
+// full start_time range and filtering agent_type per-row.
+// ============================================================================
+
+export const CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time)
 `;
 
 // ============================================================================

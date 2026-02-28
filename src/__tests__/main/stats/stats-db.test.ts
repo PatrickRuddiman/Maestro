@@ -208,6 +208,24 @@ describe('StatsDB class (mocked)', () => {
 			expect(mockDb.pragma).toHaveBeenCalledWith('user_version = 1');
 		});
 
+		it('should run v5 migration to add optimized agent_time index', async () => {
+			mockDb.pragma.mockImplementation((sql: string) => {
+				if (sql === 'user_version') return [{ user_version: 4 }];
+				return undefined;
+			});
+
+			const { StatsDB } = await import('../../../main/stats');
+			const db = new StatsDB();
+			await db.initialize();
+
+			// Should set user_version to 5
+			expect(mockDb.pragma).toHaveBeenCalledWith('user_version = 5');
+
+			// Should have created the optimized reverse compound index
+			const prepareCalls = mockDb.prepare.mock.calls.map((call) => call[0]);
+			expect(prepareCalls.some((sql: string) => sql.includes('idx_query_agent_time'))).toBe(true);
+		});
+
 		it('should skip migration for already migrated database', async () => {
 			mockDb.pragma.mockImplementation((sql: string) => {
 				if (sql === 'user_version') return [{ user_version: 1 }];
@@ -305,13 +323,13 @@ describe('StatsDB class (mocked)', () => {
 			const db = new StatsDB();
 			await db.initialize();
 
-			// Currently we have version 4 migration (v1: initial schema, v2: is_remote column, v3: session_lifecycle table, v4: compound indexes)
-			expect(db.getTargetVersion()).toBe(4);
+			// Currently we have version 5 migration (v1: initial schema, v2: is_remote column, v3: session_lifecycle table, v4: compound indexes, v5: optimized agent_time index)
+			expect(db.getTargetVersion()).toBe(5);
 		});
 
 		it('should return false from hasPendingMigrations() when up to date', async () => {
 			mockDb.pragma.mockImplementation((sql: string) => {
-				if (sql === 'user_version') return [{ user_version: 4 }];
+				if (sql === 'user_version') return [{ user_version: 5 }];
 				return undefined;
 			});
 
@@ -326,8 +344,8 @@ describe('StatsDB class (mocked)', () => {
 			// This test verifies the hasPendingMigrations() logic
 			// by checking current version < target version
 
-			// Simulate a database that's already at version 4 (target version)
-			let currentVersion = 4;
+			// Simulate a database that's already at version 5 (target version)
+			let currentVersion = 5;
 			mockDb.pragma.mockImplementation((sql: string) => {
 				if (sql === 'user_version') return [{ user_version: currentVersion }];
 				// Handle version updates from migration
@@ -341,9 +359,9 @@ describe('StatsDB class (mocked)', () => {
 			const db = new StatsDB();
 			await db.initialize();
 
-			// At version 4, target is 4, so no pending migrations
-			expect(db.getCurrentVersion()).toBe(4);
-			expect(db.getTargetVersion()).toBe(4);
+			// At version 5, target is 5, so no pending migrations
+			expect(db.getCurrentVersion()).toBe(5);
+			expect(db.getTargetVersion()).toBe(5);
 			expect(db.hasPendingMigrations()).toBe(false);
 		});
 
@@ -655,6 +673,8 @@ describe('Database file creation on first launch', () => {
 				'idx_query_time_agent',
 				'idx_query_time_project',
 				'idx_query_time_source',
+				// Optimized reverse compound index (equality column first, then range column)
+				'idx_query_agent_time',
 			];
 
 			for (const indexName of expectedIndexes) {
