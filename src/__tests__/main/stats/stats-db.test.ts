@@ -641,15 +641,20 @@ describe('Database file creation on first launch', () => {
 
 			const prepareCalls = mockDb.prepare.mock.calls.map((call) => call[0]);
 
-			// Verify all 7 indexes are created
+			// Verify all single-column and compound indexes are created
 			const expectedIndexes = [
 				'idx_query_start_time',
 				'idx_query_agent_type',
 				'idx_query_source',
 				'idx_query_session',
+				'idx_query_project_path',
 				'idx_auto_session_start',
 				'idx_task_auto_session',
 				'idx_task_start',
+				// Compound indexes for dashboard query performance (start_time + filter column)
+				'idx_query_time_agent',
+				'idx_query_time_project',
+				'idx_query_time_source',
 			];
 
 			for (const indexName of expectedIndexes) {
