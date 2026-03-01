@@ -1409,6 +1409,20 @@ function SessionListInner(props: SessionListProps) {
 		return map;
 	}, [sortedSessions]);
 
+	// PERF: Pre-compute jump numbers (1-9, 0=10th) for sessions by their position
+	// in visibleSessions. Replaces the O(N) findIndex() per session with O(1) Map lookup,
+	// eliminating O(N^2) total work when rendering the session list.
+	const sessionJumpNumberById = useMemo(() => {
+		const map = new Map<string, string>();
+		if (!showSessionJumpNumbers) return map;
+		visibleSessions.forEach((s, index) => {
+			if (index >= 10) return;
+			// Show 1-9 for positions 0-8, and 0 for position 9 (10th session)
+			map.set(s.id, index === 9 ? '0' : String(index + 1));
+		});
+		return map;
+	}, [showSessionJumpNumbers, visibleSessions]);
+
 	// PERF: Memoized styles record for SessionListInner to avoid allocating new
 	// style objects on every render, especially inside .map() loops.
 	const styles = useMemo(
@@ -1689,7 +1703,7 @@ function SessionListInner(props: SessionListProps) {
 					groupId={options.groupId}
 					gitFileCount={getFileCount(session.id)}
 					isInBatch={activeBatchSessionIds.includes(session.id)}
-					jumpNumber={getSessionJumpNumber(session.id)}
+					jumpNumber={sessionJumpNumberById.get(session.id) ?? null}
 					onSelect={selectHandlers.get(session.id)!}
 					onDragStart={dragStartHandlers.get(session.id)!}
 					onDragOver={handleDragOver}
@@ -1744,7 +1758,7 @@ function SessionListInner(props: SessionListProps) {
 										leftSidebarOpen={leftSidebarOpen}
 										gitFileCount={getFileCount(child.id)}
 										isInBatch={activeBatchSessionIds.includes(child.id)}
-										jumpNumber={getSessionJumpNumber(child.id)}
+										jumpNumber={sessionJumpNumberById.get(child.id) ?? null}
 										onSelect={selectHandlers.get(child.id)!}
 										onDragStart={dragStartHandlers.get(child.id)!}
 										onContextMenu={contextMenuHandlers.get(child.id)!}
@@ -1991,14 +2005,7 @@ function SessionListInner(props: SessionListProps) {
 		}
 	}, [sessionFilter]);
 
-	// Get the jump number (1-9, 0=10th) for a session based on its position in visibleSessions
-	const getSessionJumpNumber = (sessionId: string): string | null => {
-		if (!showSessionJumpNumbers) return null;
-		const index = visibleSessions.findIndex((s) => s.id === sessionId);
-		if (index < 0 || index >= 10) return null;
-		// Show 1-9 for positions 0-8, and 0 for position 9 (10th session)
-		return index === 9 ? '0' : String(index + 1);
-	};
+	// Jump number lookups now use the pre-computed sessionJumpNumberById Map (see useMemo above).
 
 	return (
 		<div
