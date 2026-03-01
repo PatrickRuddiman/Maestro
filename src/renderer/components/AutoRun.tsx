@@ -69,6 +69,10 @@ const SEARCH_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
 // which would cause ReactMarkdown to re-parse the markdown unnecessarily.
 const REHYPE_PLUGINS = [rehypeSlug];
 
+// Stable no-op fallback — avoids creating a new arrow function on every render
+// when onContentChange is not provided, keeping downstream hook dependencies stable.
+const noop = () => {};
+
 interface AutoRunProps {
 	theme: Theme;
 	sessionId: string; // Maestro session ID for per-session attachment storage
@@ -543,8 +547,8 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
 		[onModeChange]
 	);
 
-	// Use onContentChange if provided, otherwise no-op
-	const handleContentChange = onContentChange || (() => {});
+	// Use onContentChange if provided, otherwise stable no-op
+	const handleContentChange = onContentChange || noop;
 
 	// Local content state for responsive typing
 	// Always use internal state for immediate feedback, but sync with external state when provided
