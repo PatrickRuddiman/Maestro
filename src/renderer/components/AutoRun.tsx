@@ -65,6 +65,10 @@ const ORDERED_LIST_REGEX = /^(\s*)(\d+)\.\s+/;
 const TASK_LIST_REGEX = /^(\s*)- \[([ x])\]\s+/;
 const SEARCH_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
 
+// Stable rehype plugin array — avoids creating a new array reference on every render,
+// which would cause ReactMarkdown to re-parse the markdown unnecessarily.
+const REHYPE_PLUGINS = [rehypeSlug];
+
 interface AutoRunProps {
 	theme: Theme;
 	sessionId: string; // Maestro session ID for per-session attachment storage
@@ -2061,7 +2065,7 @@ const AutoRunInner = forwardRef<AutoRunHandle, AutoRunProps>(function AutoRunInn
 							<style>{proseStyles}</style>
 							<ReactMarkdown
 								remarkPlugins={remarkPlugins}
-								rehypePlugins={[rehypeSlug]}
+								rehypePlugins={REHYPE_PLUGINS}
 								components={markdownComponents}
 							>
 								{localContent || '*No content yet. Switch to Edit mode to start writing.*'}
