@@ -1390,6 +1390,17 @@ function SessionListInner(props: SessionListProps) {
 		return map;
 	}, [sessions]);
 
+	// PERF: Pre-compute non-terminal session count to avoid allocating a filtered array
+	// on every render just to check `sessions.filter(s => s.toolType !== 'terminal').length >= 2`
+	// for GroupChatList visibility. Uses a simple counter instead of Array.filter().
+	const nonTerminalCount = useMemo(() => {
+		let count = 0;
+		for (const s of sessions) {
+			if (s.toolType !== 'terminal') count++;
+		}
+		return count;
+	}, [sessions]);
+
 	const sortedWorktreeChildrenByParentId = useMemo(() => {
 		const map = new Map<string, Session[]>();
 		worktreeChildrenByParentId.forEach((children, parentId) => {
@@ -2845,7 +2856,7 @@ function SessionListInner(props: SessionListProps) {
 						onEditGroupChat &&
 						onRenameGroupChat &&
 						onDeleteGroupChat &&
-						sessions.filter((s) => s.toolType !== 'terminal').length >= 2 && (
+						nonTerminalCount >= 2 && (
 							<GroupChatList
 								theme={theme}
 								groupChats={groupChats}
@@ -2992,7 +3003,7 @@ function SessionListInner(props: SessionListProps) {
 					theme={theme}
 					session={contextMenuSession}
 					groups={groups}
-					hasWorktreeChildren={sessions.some((s) => s.parentSessionId === contextMenuSession.id)}
+					hasWorktreeChildren={worktreeChildrenByParentId.has(contextMenuSession.id)}
 					onRename={() => {
 						setRenameInstanceValue(contextMenuSession.name);
 						setRenameInstanceSessionId(contextMenuSession.id);
