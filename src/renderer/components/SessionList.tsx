@@ -1423,6 +1423,12 @@ function SessionListInner(props: SessionListProps) {
 		return map;
 	}, [showSessionJumpNumbers, visibleSessions]);
 
+	// PERF: Pre-compute a Map of group ID -> Group to replace O(G) groups.find()
+	// calls inside render loops (bookmarked sessions, skinny-mode) with O(1) lookups.
+	const groupsById = useMemo(() => {
+		return new Map(groups.map((g) => [g.id, g]));
+	}, [groups]);
+
 	// PERF: Memoized styles record for SessionListInner to avoid allocating new
 	// style objects on every render, especially inside .map() loops.
 	const styles = useMemo(
@@ -2607,7 +2613,7 @@ function SessionListInner(props: SessionListProps) {
 							{!bookmarksCollapsed ? (
 								<div className="flex flex-col border-l ml-4" style={styles.bookmarksBorder}>
 									{sortedBookmarkedSessions.map((session) => {
-										const group = groups.find((g) => g.id === session.groupId);
+										const group = session.groupId ? groupsById.get(session.groupId) : undefined;
 										return renderSessionWithWorktrees(session, 'bookmark', {
 											keyPrefix: 'bookmark',
 											group,
@@ -2921,7 +2927,7 @@ function SessionListInner(props: SessionListProps) {
 										session={session}
 										theme={theme}
 										gitFileCount={getFileCount(session.id)}
-										groupName={groups.find((g) => g.id === session.groupId)?.name}
+										groupName={session.groupId ? groupsById.get(session.groupId)?.name : undefined}
 										isInBatch={isInBatch}
 										contextWarningYellowThreshold={contextWarningYellowThreshold}
 										contextWarningRedThreshold={contextWarningRedThreshold}
