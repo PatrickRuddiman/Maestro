@@ -1680,6 +1680,34 @@ function SessionListInner(props: SessionListProps) {
 		return map;
 	}, [sessions, toggleBookmark]);
 
+	const startRenameHandlers = useMemo(() => {
+		const map = new Map<string, () => void>();
+		sessions.forEach((s) => {
+			if (s.parentSessionId) {
+				// Worktree child: key is "worktree-{parentId}-{childId}"
+				const key = `worktree-${s.parentSessionId}-${s.id}`;
+				map.set(key, () => startRenamingSession(key));
+			} else {
+				// Parent/standalone session: generate entries for all possible keyPrefixes
+				if (s.bookmarked) {
+					const key = `bookmark-${s.id}`;
+					map.set(key, () => startRenamingSession(key));
+				}
+				if (s.groupId) {
+					const key = `group-${s.groupId}-${s.id}`;
+					map.set(key, () => startRenamingSession(key));
+				} else {
+					// Generate both flat and ungrouped since only one is used at runtime
+					const flatKey = `flat-${s.id}`;
+					map.set(flatKey, () => startRenamingSession(flatKey));
+					const ungroupedKey = `ungrouped-${s.id}`;
+					map.set(ungroupedKey, () => startRenamingSession(ungroupedKey));
+				}
+			}
+		});
+		return map;
+	}, [sessions, startRenamingSession]);
+
 	// Helper component: Renders a session item with its worktree children (if any)
 	const renderSessionWithWorktrees = (
 		session: Session,
@@ -1727,7 +1755,7 @@ function SessionListInner(props: SessionListProps) {
 					onDrop={options.onDrop || handleDropOnUngrouped}
 					onContextMenu={contextMenuHandlers.get(session.id)!}
 					onFinishRename={finishRenameHandlers.get(session.id)!}
-					onStartRename={() => startRenamingSession(`${options.keyPrefix}-${session.id}`)}
+					onStartRename={startRenameHandlers.get(`${options.keyPrefix}-${session.id}`)!}
 					onToggleBookmark={toggleBookmarkHandlers.get(session.id)!}
 				/>
 
@@ -1780,7 +1808,7 @@ function SessionListInner(props: SessionListProps) {
 										onDragStart={dragStartHandlers.get(child.id)!}
 										onContextMenu={contextMenuHandlers.get(child.id)!}
 										onFinishRename={finishRenameHandlers.get(child.id)!}
-										onStartRename={() => startRenamingSession(`worktree-${session.id}-${child.id}`)}
+										onStartRename={startRenameHandlers.get(`worktree-${session.id}-${child.id}`)!}
 										onToggleBookmark={toggleBookmarkHandlers.get(child.id)!}
 									/>
 								);

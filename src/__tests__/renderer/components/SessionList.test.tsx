@@ -1761,6 +1761,120 @@ describe('SessionList', () => {
 			// setActiveSessionId should not be called when clicking on the input
 			expect(setActiveSessionId).not.toHaveBeenCalled();
 		});
+
+		it('starts renaming with bookmark prefix on double-click in bookmarks section', () => {
+			const startRenamingSession = vi.fn();
+			const sessions = [
+				createMockSession({ id: 's1', name: 'Bookmarked Agent', bookmarked: true }),
+			];
+			useSessionStore.setState({
+				sessions: sessions,
+				groups: [],
+			});
+			useUIStore.setState({ leftSidebarOpen: true, bookmarksCollapsed: false });
+			const props = createDefaultProps({
+				sortedSessions: sessions,
+				startRenamingSession,
+			});
+			render(<SessionList {...props} />);
+
+			// The bookmarked session appears in the Bookmarks section
+			const bookmarkSessionElements = screen.getAllByText('Bookmarked Agent');
+			// Double-click the first one (bookmark section renders first)
+			fireEvent.doubleClick(bookmarkSessionElements[0]);
+			expect(startRenamingSession).toHaveBeenCalledWith('bookmark-s1');
+		});
+
+		it('starts renaming with group prefix on double-click in group section', () => {
+			const startRenamingSession = vi.fn();
+			const group = createMockGroup({ id: 'g1', name: 'My Group' });
+			const sessions = [createMockSession({ id: 's1', name: 'Grouped Agent', groupId: 'g1' })];
+			useSessionStore.setState({
+				sessions: sessions,
+				groups: [group],
+			});
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({
+				sortedSessions: sessions,
+				startRenamingSession,
+			});
+			render(<SessionList {...props} />);
+
+			fireEvent.doubleClick(screen.getByText('Grouped Agent'));
+			expect(startRenamingSession).toHaveBeenCalledWith('group-g1-s1');
+		});
+
+		it('starts renaming with flat prefix on double-click in flat list', () => {
+			const startRenamingSession = vi.fn();
+			const sessions = [createMockSession({ id: 's1', name: 'Flat Agent' })];
+			useSessionStore.setState({
+				sessions: sessions,
+				groups: [],
+			});
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({
+				sortedSessions: sessions,
+				startRenamingSession,
+			});
+			render(<SessionList {...props} />);
+
+			fireEvent.doubleClick(screen.getByText('Flat Agent'));
+			expect(startRenamingSession).toHaveBeenCalledWith('flat-s1');
+		});
+
+		it('starts renaming with worktree prefix on double-click for worktree child', () => {
+			const startRenamingSession = vi.fn();
+			const parentSession = createMockSession({ id: 'parent1', name: 'Parent Agent' });
+			const childSession = createMockSession({
+				id: 'child1',
+				name: 'Worktree Child',
+				parentSessionId: 'parent1',
+			});
+			useSessionStore.setState({
+				sessions: [parentSession, childSession],
+				groups: [],
+			});
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({
+				sortedSessions: [parentSession],
+				startRenamingSession,
+				onToggleWorktreeExpanded: vi.fn(),
+			});
+			render(<SessionList {...props} />);
+
+			fireEvent.doubleClick(screen.getByText('Worktree Child'));
+			expect(startRenamingSession).toHaveBeenCalledWith('worktree-parent1-child1');
+		});
+
+		it('uses cached startRenameHandlers Map for stable references (bookmarked session in two sections)', () => {
+			const startRenamingSession = vi.fn();
+			const group = createMockGroup({ id: 'g1', name: 'My Group' });
+			// A bookmarked session in a group appears in both Bookmarks and Group sections
+			const sessions = [
+				createMockSession({ id: 's1', name: 'Dual Agent', bookmarked: true, groupId: 'g1' }),
+			];
+			useSessionStore.setState({
+				sessions: sessions,
+				groups: [group],
+			});
+			useUIStore.setState({ leftSidebarOpen: true, bookmarksCollapsed: false });
+			const props = createDefaultProps({
+				sortedSessions: sessions,
+				startRenamingSession,
+			});
+			render(<SessionList {...props} />);
+
+			const sessionElements = screen.getAllByText('Dual Agent');
+			// First instance is in Bookmarks section
+			fireEvent.doubleClick(sessionElements[0]);
+			expect(startRenamingSession).toHaveBeenCalledWith('bookmark-s1');
+
+			startRenamingSession.mockClear();
+
+			// Second instance is in Group section
+			fireEvent.doubleClick(sessionElements[1]);
+			expect(startRenamingSession).toHaveBeenCalledWith('group-g1-s1');
+		});
 	});
 
 	// ============================================================================
