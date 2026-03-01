@@ -1136,12 +1136,23 @@ function SessionListInner(props: SessionListProps) {
 		(s) => s.contextManagementSettings.contextWarningRedThreshold
 	);
 	const activeBatchSessionIds = useBatchStore(useShallow(selectActiveBatchSessionIds));
-	const groupChats = useGroupChatStore((s) => s.groupChats);
-	const activeGroupChatId = useGroupChatStore((s) => s.activeGroupChatId);
-	const groupChatState = useGroupChatStore((s) => s.groupChatState);
-	const participantStates = useGroupChatStore((s) => s.participantStates);
-	const groupChatStates = useGroupChatStore((s) => s.groupChatStates);
-	const allGroupChatParticipantStates = useGroupChatStore((s) => s.allGroupChatParticipantStates);
+	const {
+		groupChats,
+		activeGroupChatId,
+		groupChatState,
+		participantStates,
+		groupChatStates,
+		allGroupChatParticipantStates,
+	} = useGroupChatStore(
+		useShallow((s) => ({
+			groupChats: s.groupChats,
+			activeGroupChatId: s.activeGroupChatId,
+			groupChatState: s.groupChatState,
+			participantStates: s.participantStates,
+			groupChatStates: s.groupChatStates,
+			allGroupChatParticipantStates: s.allGroupChatParticipantStates,
+		}))
+	);
 
 	// Stable store actions
 	const setActiveFocus = useUIStore.getState().setActiveFocus;

@@ -19,6 +19,7 @@ import { useUIStore } from '../../../renderer/stores/uiStore';
 import { useSessionStore } from '../../../renderer/stores/sessionStore';
 import { useSettingsStore, DEFAULT_AUTO_RUN_STATS } from '../../../renderer/stores/settingsStore';
 import { useBatchStore } from '../../../renderer/stores/batchStore';
+import { useGroupChatStore } from '../../../renderer/stores/groupChatStore';
 import type { BatchRunState } from '../../../renderer/types';
 
 // Mock QRCodeSVG to avoid complex rendering
@@ -3238,6 +3239,156 @@ describe('SessionList', () => {
 
 			// Menu should close
 			expect(screen.queryByText('Rename')).not.toBeInTheDocument();
+		});
+	});
+
+	// ============================================================================
+	// useGroupChatStore Batched Selector Tests (PERF-08)
+	// ============================================================================
+
+	describe('Group Chat Store Batched Selector', () => {
+		it('renders correctly with default group chat store state', () => {
+			// Ensure the component renders with the default (empty) group chat store state
+			// This validates that the batched useShallow selector correctly destructures all 6 fields
+			const sessions = [createMockSession({ id: 's1', name: 'GC Test Session' })];
+			useSessionStore.setState({ sessions: sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+
+			render(<SessionList {...props} />);
+
+			expect(screen.getByText('GC Test Session')).toBeInTheDocument();
+		});
+
+		it('renders correctly when group chat store has active group chat data', () => {
+			// Set up group chat store with active data to verify all 6 fields flow through
+			useGroupChatStore.setState({
+				groupChats: [
+					{
+						id: 'gc1',
+						name: 'Test Group Chat',
+						participants: [
+							{ name: 'Agent 1', agentId: 'claude-code', sessionId: 's1', addedAt: Date.now() },
+							{ name: 'Agent 2', agentId: 'claude-code', sessionId: 's2', addedAt: Date.now() },
+						],
+						moderatorAgentId: 'claude-code',
+						moderatorSessionId: 'mod-gc1',
+						logPath: '/tmp/gc1.log',
+						imagesDir: '/tmp/gc1-images',
+						createdAt: Date.now(),
+					},
+				],
+				activeGroupChatId: 'gc1',
+				groupChatState: 'idle',
+				participantStates: new Map([
+					['s1', 'idle'],
+					['s2', 'working'],
+				]),
+				groupChatStates: new Map([['gc1', 'idle']]),
+				allGroupChatParticipantStates: new Map([
+					[
+						'gc1',
+						new Map([
+							['s1', 'idle'],
+							['s2', 'working'],
+						]),
+					],
+				]),
+			});
+
+			const sessions = [
+				createMockSession({ id: 's1', name: 'Participant 1' }),
+				createMockSession({ id: 's2', name: 'Participant 2' }),
+			];
+			useSessionStore.setState({ sessions: sessions });
+			useUIStore.setState({ leftSidebarOpen: true, groupChatsExpanded: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+
+			render(<SessionList {...props} />);
+
+			// Component renders without errors with all group chat fields populated
+			expect(screen.getByText('Participant 1')).toBeInTheDocument();
+			expect(screen.getByText('Participant 2')).toBeInTheDocument();
+		});
+
+		it('renders correctly when participantStates and groupChatStates maps are updated', () => {
+			// Verify that Map-type fields (participantStates, groupChatStates, allGroupChatParticipantStates)
+			// are correctly consumed through the batched useShallow selector
+			useGroupChatStore.setState({
+				groupChats: [],
+				activeGroupChatId: null,
+				groupChatState: 'idle',
+				participantStates: new Map(),
+				groupChatStates: new Map(),
+				allGroupChatParticipantStates: new Map(),
+			});
+
+			const sessions = [createMockSession({ id: 's1', name: 'Map Test Session' })];
+			useSessionStore.setState({ sessions: sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+
+			const { rerender } = render(<SessionList {...props} />);
+			expect(screen.getByText('Map Test Session')).toBeInTheDocument();
+
+			// Update the Maps — these are the fields that change frequently during active group chats
+			act(() => {
+				useGroupChatStore.setState({
+					participantStates: new Map([['s1', 'working']]),
+					groupChatStates: new Map([['gc1', 'running']]),
+				});
+			});
+
+			rerender(<SessionList {...props} />);
+			expect(screen.getByText('Map Test Session')).toBeInTheDocument();
+		});
+
+		it('handles transition from no group chats to active group chat', () => {
+			// Start with empty state
+			useGroupChatStore.setState({
+				groupChats: [],
+				activeGroupChatId: null,
+				groupChatState: 'idle',
+				participantStates: new Map(),
+				groupChatStates: new Map(),
+				allGroupChatParticipantStates: new Map(),
+			});
+
+			const sessions = [createMockSession({ id: 's1', name: 'Transition Test' })];
+			useSessionStore.setState({ sessions: sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+
+			const { rerender } = render(<SessionList {...props} />);
+			expect(screen.getByText('Transition Test')).toBeInTheDocument();
+
+			// Transition to having an active group chat
+			act(() => {
+				useGroupChatStore.setState({
+					groupChats: [
+						{
+							id: 'gc1',
+							name: 'New Chat',
+							participants: [
+								{ name: 'Agent 1', agentId: 'claude-code', sessionId: 's1', addedAt: Date.now() },
+							],
+							moderatorAgentId: 'claude-code',
+							moderatorSessionId: 'mod-gc1',
+							logPath: '/tmp/gc1.log',
+							imagesDir: '/tmp/gc1-images',
+							createdAt: Date.now(),
+						},
+					],
+					activeGroupChatId: 'gc1',
+					groupChatState: 'running',
+					participantStates: new Map([['s1', 'working']]),
+					groupChatStates: new Map([['gc1', 'running']]),
+					allGroupChatParticipantStates: new Map([['gc1', new Map([['s1', 'working']])]]),
+				});
+			});
+
+			rerender(<SessionList {...props} />);
+			expect(screen.getByText('Transition Test')).toBeInTheDocument();
 		});
 	});
 });
