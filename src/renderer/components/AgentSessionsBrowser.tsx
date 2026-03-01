@@ -1519,7 +1519,7 @@ export function AgentSessionsBrowser({
 										isStarred={starredSessions.has(session.sessionId)}
 										activeAgentSessionId={activeAgentSessionId}
 										renamingSessionId={renamingSessionId}
-										renameValue={renameValue}
+										renameValue={renamingSessionId === session.sessionId ? renameValue : ''}
 										searchMode={searchMode}
 										searchResultInfo={getSearchResultInfo(session.sessionId)}
 										theme={theme}

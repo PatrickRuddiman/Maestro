@@ -347,4 +347,88 @@ describe('SessionListItem', () => {
 			expect(onCancelRename).toHaveBeenCalled();
 		});
 	});
+
+	describe('renameValue isolation', () => {
+		it('does not show rename input when renameValue is empty and renamingSessionId does not match', () => {
+			render(
+				<SessionListItem
+					{...createDefaultProps({
+						renamingSessionId: 'other-session-id',
+						renameValue: '',
+					})}
+				/>
+			);
+
+			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
+		});
+
+		it('shows rename input with value when renamingSessionId matches this session', () => {
+			render(
+				<SessionListItem
+					{...createDefaultProps({
+						renamingSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						renameValue: 'Typing...',
+					})}
+				/>
+			);
+
+			const input = screen.getByPlaceholderText('Enter session name...');
+			expect(input).toBeInTheDocument();
+			expect(input).toHaveValue('Typing...');
+		});
+
+		it('React.memo skips re-render when renameValue stays as empty string for non-renaming item', () => {
+			// Non-renaming items should always receive renameValue='' from the parent.
+			// Verify that re-rendering with the same empty string does not cause new output.
+			const props = createDefaultProps({
+				renamingSessionId: null,
+				renameValue: '',
+			});
+			const { container, rerender } = render(<SessionListItem {...props} />);
+
+			const initialHtml = container.innerHTML;
+
+			// Rerender with same props (stable empty string) — memo should skip
+			rerender(<SessionListItem {...props} />);
+			expect(container.innerHTML).toBe(initialHtml);
+		});
+
+		it('re-renders when renameValue changes for the renaming item', () => {
+			const sessionId = 'abc12345-6789-4a01-9123-456789abcdef';
+			const props1 = createDefaultProps({
+				renamingSessionId: sessionId,
+				renameValue: 'Old',
+			});
+			const { rerender } = render(<SessionListItem {...props1} />);
+
+			const input1 = screen.getByPlaceholderText('Enter session name...');
+			expect(input1).toHaveValue('Old');
+
+			// Update renameValue — the renaming item should re-render with new value
+			const props2 = createDefaultProps({
+				renamingSessionId: sessionId,
+				renameValue: 'New Name',
+			});
+			rerender(<SessionListItem {...props2} />);
+
+			const input2 = screen.getByPlaceholderText('Enter session name...');
+			expect(input2).toHaveValue('New Name');
+		});
+
+		it('does not show rename input when renameValue has text but renamingSessionId does not match', () => {
+			// Edge case: parent passes non-empty renameValue but for a different session.
+			// With the isolation fix, non-renaming items receive '' so this case shouldn't happen,
+			// but the component should still not show rename input based on renamingSessionId mismatch.
+			render(
+				<SessionListItem
+					{...createDefaultProps({
+						renamingSessionId: 'different-session-id',
+						renameValue: 'Some value',
+					})}
+				/>
+			);
+
+			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
+		});
+	});
 });
