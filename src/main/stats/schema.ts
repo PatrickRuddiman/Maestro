@@ -58,7 +58,8 @@ export const CREATE_QUERY_EVENTS_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_time_agent ON query_events(start_time, agent_type);
   CREATE INDEX IF NOT EXISTS idx_query_time_project ON query_events(start_time, project_path);
   CREATE INDEX IF NOT EXISTS idx_query_time_source ON query_events(start_time, source);
-  CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time)
+  CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time);
+  CREATE INDEX IF NOT EXISTS idx_query_source_time ON query_events(source, start_time)
 `;
 
 // ============================================================================
@@ -149,6 +150,20 @@ export const CREATE_COMPOUND_INDEXES_SQL = `
 
 export const CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time)
+`;
+
+// ============================================================================
+// Optimized Compound Index for Source Queries (Migration v6)
+//
+// Same reverse-compound pattern as v5 but for source queries.
+// For `WHERE start_time >= ? GROUP BY source`, SQLite prefers a single-column
+// index on source for GROUP BY ordering, scanning the full index. With
+// (source, start_time) SQLite can group by source and range-scan start_time
+// within each group, reducing rows examined.
+// ============================================================================
+
+export const CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_query_source_time ON query_events(source, start_time)
 `;
 
 // ============================================================================

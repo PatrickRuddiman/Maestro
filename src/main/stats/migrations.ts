@@ -26,6 +26,7 @@ import {
 	CREATE_SESSION_LIFECYCLE_INDEXES_SQL,
 	CREATE_COMPOUND_INDEXES_SQL,
 	CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL,
+	CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL,
 	runStatements,
 } from './schema';
 import { LOG_CONTEXT } from './utils';
@@ -66,6 +67,12 @@ export function getMigrations(): Migration[] {
 			description:
 				'Add optimized reverse compound index (agent_type, start_time) for equality+range queries',
 			up: (db) => migrateV5(db),
+		},
+		{
+			version: 6,
+			description:
+				'Add optimized reverse compound index (source, start_time) for source GROUP BY + time range queries',
+			up: (db) => migrateV6(db),
 		},
 	];
 }
@@ -268,4 +275,19 @@ function migrateV5(db: Database.Database): void {
 	runStatements(db, CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL);
 
 	logger.debug('Added optimized reverse compound index (agent_type, start_time)', LOG_CONTEXT);
+}
+
+/**
+ * Migration v6: Add optimized reverse compound index (source, start_time)
+ *
+ * Same pattern as v5 but for source queries. The queryBySource query uses
+ * `WHERE start_time >= ? GROUP BY source`. Without this index, SQLite prefers
+ * the single-column idx_query_source for GROUP BY ordering, scanning the full
+ * index. With (source, start_time), SQLite can group by source and range-scan
+ * start_time within each group, reducing rows examined.
+ */
+function migrateV6(db: Database.Database): void {
+	runStatements(db, CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL);
+
+	logger.debug('Added optimized reverse compound index (source, start_time)', LOG_CONTEXT);
 }

@@ -63,7 +63,7 @@ function queryBySource(db: Database.Database, startTime: number): { user: number
 		.prepare(
 			`
       SELECT source, COUNT(*) as count
-      FROM query_events
+      FROM query_events INDEXED BY idx_query_source_time
       WHERE start_time >= ?
       GROUP BY source
     `

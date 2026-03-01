@@ -520,12 +520,13 @@ describe('Time-range filtering works correctly for all ranges', () => {
 			expect(byAgentCall![0]).toContain('WHERE start_time >= ?');
 			expect(byAgentCall![0]).toContain('INDEXED BY idx_query_agent_time');
 
-			// Verify the bySource query includes the filter
+			// Verify the bySource query includes the filter and INDEXED BY hint
 			const bySourceCall = prepareCalls.find((call) =>
 				(call[0] as string).includes('GROUP BY source')
 			);
 			expect(bySourceCall).toBeDefined();
 			expect(bySourceCall![0]).toContain('WHERE start_time >= ?');
+			expect(bySourceCall![0]).toContain('INDEXED BY idx_query_source_time');
 
 			// Verify the byDay query includes the filter
 			const byDayCall = prepareCalls.find((call) => (call[0] as string).includes('GROUP BY date('));
@@ -1237,7 +1238,7 @@ describe('Aggregation queries return correct calculations', () => {
 			expect(byAgentCall![0]).toContain('INDEXED BY idx_query_agent_time');
 		});
 
-		it('should GROUP BY source for bySource breakdown', async () => {
+		it('should GROUP BY source for bySource breakdown with INDEXED BY hint', async () => {
 			mockStatement.get.mockReturnValue({ count: 0, total_duration: 0 });
 			mockStatement.all.mockReturnValue([]);
 
@@ -1255,6 +1256,7 @@ describe('Aggregation queries return correct calculations', () => {
 			);
 
 			expect(bySourceCall).toBeDefined();
+			expect(bySourceCall![0]).toContain('INDEXED BY idx_query_source_time');
 		});
 
 		it('should use date() function for daily grouping', async () => {
