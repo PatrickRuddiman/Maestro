@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import {
 	Plus,
 	Trash2,
@@ -49,6 +49,19 @@ export function AICommandsPanel({
 	const newCommandTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const editCommandTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+	// PERF: Stable onChange callbacks using functional state updaters.
+	// Avoids closing over newCommand/editingCommand which change every keystroke,
+	// preventing cascading invalidation of all useCallback hooks inside
+	// useTemplateAutocomplete (selectVariable, handleChange, etc.).
+	const handleNewCommandPromptChange = useCallback(
+		(value: string) => setNewCommand((prev) => ({ ...prev, prompt: value })),
+		[]
+	);
+	const handleEditCommandPromptChange = useCallback(
+		(value: string) => setEditingCommand((prev) => (prev ? { ...prev, prompt: value } : prev)),
+		[]
+	);
+
 	// Template autocomplete for new command prompt
 	const {
 		autocompleteState: newAutocompleteState,
@@ -59,7 +72,7 @@ export function AICommandsPanel({
 	} = useTemplateAutocomplete({
 		textareaRef: newCommandTextareaRef,
 		value: newCommand.prompt,
-		onChange: (value) => setNewCommand({ ...newCommand, prompt: value }),
+		onChange: handleNewCommandPromptChange,
 	});
 
 	// Template autocomplete for edit command prompt
@@ -72,7 +85,7 @@ export function AICommandsPanel({
 	} = useTemplateAutocomplete({
 		textareaRef: editCommandTextareaRef,
 		value: editingCommand?.prompt || '',
-		onChange: (value) => editingCommand && setEditingCommand({ ...editingCommand, prompt: value }),
+		onChange: handleEditCommandPromptChange,
 	});
 
 	const toggleExpanded = (id: string) => {
@@ -352,7 +365,7 @@ export function AICommandsPanel({
 									const end = textarea.selectionEnd;
 									const value = textarea.value;
 									const newValue = value.substring(0, start) + '\t' + value.substring(end);
-									setNewCommand({ ...newCommand, prompt: newValue });
+									setNewCommand((prev) => ({ ...prev, prompt: newValue }));
 									setTimeout(() => {
 										textarea.selectionStart = textarea.selectionEnd = start + 1;
 									}, 0);
@@ -468,7 +481,7 @@ export function AICommandsPanel({
 												const end = textarea.selectionEnd;
 												const value = textarea.value;
 												const newValue = value.substring(0, start) + '\t' + value.substring(end);
-												setEditingCommand({ ...editingCommand, prompt: newValue });
+												setEditingCommand((prev) => (prev ? { ...prev, prompt: newValue } : prev));
 												setTimeout(() => {
 													textarea.selectionStart = textarea.selectionEnd = start + 1;
 												}, 0);

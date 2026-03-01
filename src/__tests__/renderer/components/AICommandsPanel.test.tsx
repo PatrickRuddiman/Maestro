@@ -32,10 +32,15 @@ const mockHandleKeyDown = vi.fn().mockReturnValue(false);
 const mockSelectVariable = vi.fn();
 const mockAutocompleteRef = { current: null };
 
+// Track onChange references passed to useTemplateAutocomplete across renders
+// to verify callback stability (PERF: useCallback stabilization).
+const capturedOnChangeRefs: Array<(value: string) => void> = [];
+
 vi.mock('../../../renderer/hooks/input/useTemplateAutocomplete', () => ({
 	useTemplateAutocomplete: vi.fn((props: { onChange: (value: string) => void }) => {
 		// Capture the onChange in a closure for this specific hook instance
 		const onChange = props.onChange;
+		capturedOnChangeRefs.push(onChange);
 		return {
 			autocompleteState: mockAutocompleteState,
 			handleKeyDown: mockHandleKeyDown,
@@ -110,6 +115,7 @@ describe('AICommandsPanel', () => {
 
 	beforeEach(() => {
 		mockSetCustomAICommands = vi.fn();
+		capturedOnChangeRefs.length = 0;
 		vi.clearAllMocks();
 	});
 
@@ -1476,6 +1482,190 @@ describe('AICommandsPanel', () => {
 			// The Tab key handler should have been triggered
 			// Note: Due to mocking, we can't fully test the tab insertion but can verify the handler was called
 			expect(mockHandleKeyDown).toHaveBeenCalled();
+		});
+	});
+
+	describe('Stable onChange callback (PERF)', () => {
+		it('should pass a stable onChange reference to useTemplateAutocomplete for new command', () => {
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={[]}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			// First render produces 2 hook calls (new + edit)
+			const initialRefs = [...capturedOnChangeRefs];
+			const newCmdOnChange = initialRefs[0]; // First hook call = new command
+
+			// Trigger a re-render by changing props
+			rerender(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={[createMockCommand({ id: 'cmd-new', command: '/added' })]}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			// After re-render, the new command onChange should be the same reference
+			// (hooks are called again, so capturedOnChangeRefs has more entries)
+			const newCmdOnChangeAfterRerender = capturedOnChangeRefs[2]; // 3rd call = new command after rerender
+			expect(newCmdOnChange).toBe(newCmdOnChangeAfterRerender);
+		});
+
+		it('should pass a stable onChange reference to useTemplateAutocomplete for edit command', () => {
+			const commands = [createMockCommand({ id: 'cmd-1', command: '/test', prompt: 'Original' })];
+
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			const initialRefs = [...capturedOnChangeRefs];
+			const editCmdOnChange = initialRefs[1]; // Second hook call = edit command
+
+			// Trigger re-render by changing props
+			rerender(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={vi.fn()}
+				/>
+			);
+
+			const editCmdOnChangeAfterRerender = capturedOnChangeRefs[3]; // 4th call = edit command after rerender
+			expect(editCmdOnChange).toBe(editCmdOnChangeAfterRerender);
+		});
+
+		it('should correctly update new command prompt via stable functional updater', () => {
+			render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={[]}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			fireEvent.click(screen.getByRole('button', { name: /Add Command/i }));
+
+			const textarea = screen.getByPlaceholderText(/type {{ for variables/i);
+
+			// Type multiple characters rapidly — each uses the functional updater
+			// so it always sees the latest state, not a stale closure
+			fireEvent.change(textarea, { target: { value: 'H' } });
+			fireEvent.change(textarea, { target: { value: 'He' } });
+			fireEvent.change(textarea, { target: { value: 'Hel' } });
+			fireEvent.change(textarea, { target: { value: 'Hell' } });
+			fireEvent.change(textarea, { target: { value: 'Hello' } });
+
+			expect(textarea).toHaveValue('Hello');
+		});
+
+		it('should correctly update edit command prompt via stable functional updater', () => {
+			const commands = [createMockCommand({ id: 'cmd-1', command: '/test', prompt: 'Original' })];
+
+			render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			// Expand and enter edit mode
+			expandCommand('/test');
+			fireEvent.click(screen.getByTitle('Edit command'));
+
+			const textarea = screen.getByDisplayValue('Original');
+
+			// Type multiple characters rapidly
+			fireEvent.change(textarea, { target: { value: 'N' } });
+			fireEvent.change(textarea, { target: { value: 'Ne' } });
+			fireEvent.change(textarea, { target: { value: 'New' } });
+
+			expect(textarea).toHaveValue('New');
+		});
+
+		it('should maintain other newCommand fields when prompt changes via stable callback', () => {
+			render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={[]}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			fireEvent.click(screen.getByRole('button', { name: /Add Command/i }));
+
+			// Set command and description first
+			fireEvent.change(screen.getByPlaceholderText('/mycommand'), {
+				target: { value: '/mytest' },
+			});
+			fireEvent.change(screen.getByPlaceholderText('Short description for autocomplete'), {
+				target: { value: 'Test description' },
+			});
+
+			// Now change prompt via autocomplete handler (uses stable callback)
+			const textarea = screen.getByPlaceholderText(/type {{ for variables/i);
+			fireEvent.change(textarea, { target: { value: 'My prompt' } });
+
+			// Verify all fields are intact
+			expect(screen.getByPlaceholderText('/mycommand')).toHaveValue('/mytest');
+			expect(screen.getByPlaceholderText('Short description for autocomplete')).toHaveValue(
+				'Test description'
+			);
+			expect(textarea).toHaveValue('My prompt');
+
+			// Now create to verify the full state is correct
+			fireEvent.click(screen.getByRole('button', { name: /Create/i }));
+
+			const callArg = mockSetCustomAICommands.mock.calls[0][0];
+			expect(callArg[0].command).toBe('/mytest');
+			expect(callArg[0].description).toBe('Test description');
+			expect(callArg[0].prompt).toBe('My prompt');
+		});
+
+		it('should maintain other editingCommand fields when prompt changes via stable callback', () => {
+			const commands = [
+				createMockCommand({
+					id: 'cmd-1',
+					command: '/test',
+					description: 'Test desc',
+					prompt: 'Original prompt',
+				}),
+			];
+
+			render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			// Expand and enter edit mode
+			expandCommand('/test');
+			fireEvent.click(screen.getByTitle('Edit command'));
+
+			// Change command name first
+			const commandInput = screen.getByDisplayValue('/test');
+			fireEvent.change(commandInput, { target: { value: '/updated' } });
+
+			// Now change prompt via autocomplete handler (uses stable callback)
+			const textarea = screen.getByDisplayValue('Original prompt');
+			fireEvent.change(textarea, { target: { value: 'Updated prompt' } });
+
+			// Save and verify all fields are correct
+			fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+			const callArg = mockSetCustomAICommands.mock.calls[0][0];
+			expect(callArg[0].command).toBe('/updated');
+			expect(callArg[0].description).toBe('Test desc');
+			expect(callArg[0].prompt).toBe('Updated prompt');
 		});
 	});
 });
