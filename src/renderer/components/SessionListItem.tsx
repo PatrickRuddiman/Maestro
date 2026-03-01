@@ -48,8 +48,8 @@ export interface SessionListItemProps {
 	isSelected: boolean;
 	/** Whether this session is starred */
 	isStarred: boolean;
-	/** Currently active Claude session ID (if any) */
-	activeAgentSessionId: string | null;
+	/** Whether this session is the currently active agent session */
+	isActive: boolean;
 	/** Whether this session is currently being renamed */
 	isRenaming: boolean;
 	/** Current rename input value */
@@ -87,7 +87,7 @@ export const SessionListItem = memo(function SessionListItem({
 	session,
 	isSelected,
 	isStarred,
-	activeAgentSessionId,
+	isActive,
 	isRenaming,
 	renameValue,
 	searchMode,
@@ -103,8 +103,6 @@ export const SessionListItem = memo(function SessionListItem({
 	onSubmitRename,
 	onCancelRename,
 }: SessionListItemProps) {
-	const isActive = activeAgentSessionId === session.sessionId;
-
 	const styles = useMemo(() => {
 		const { accent, border, textDim, textMain, warning, success, bgActivity } = theme.colors;
 		return {

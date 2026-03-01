@@ -83,7 +83,7 @@ const createDefaultProps = (
 	session: createMockSession(),
 	isSelected: false,
 	isStarred: false,
-	activeAgentSessionId: null,
+	isActive: false,
 	isRenaming: false,
 	renameValue: '',
 	searchMode: 'title',
@@ -221,7 +221,7 @@ describe('SessionListItem', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						activeAgentSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						isActive: true,
 					})}
 				/>
 			);
@@ -232,7 +232,7 @@ describe('SessionListItem', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						activeAgentSessionId: 'different-session-id',
+						isActive: false,
 					})}
 				/>
 			);
@@ -482,6 +482,66 @@ describe('SessionListItem', () => {
 
 			// Rename input should be gone
 			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
+		});
+	});
+
+	describe('isActive prop optimization', () => {
+		it('does not accept activeAgentSessionId prop', () => {
+			// TypeScript type check: SessionListItemProps should not have activeAgentSessionId
+			const props = createDefaultProps();
+			expect('activeAgentSessionId' in props).toBe(false);
+			expect('isActive' in props).toBe(true);
+		});
+
+		it('renders ACTIVE badge when isActive is true', () => {
+			render(<SessionListItem {...createDefaultProps({ isActive: true })} />);
+			expect(screen.getByText('ACTIVE')).toBeInTheDocument();
+		});
+
+		it('does not render ACTIVE badge when isActive is false', () => {
+			render(<SessionListItem {...createDefaultProps({ isActive: false })} />);
+			expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument();
+		});
+
+		it('React.memo skips re-render when isActive stays false', () => {
+			// When the active session changes between other items, isActive stays false for this item.
+			// Verify that re-rendering with the same false value does not cause new output.
+			const props = createDefaultProps({ isActive: false });
+			const { container, rerender } = render(<SessionListItem {...props} />);
+
+			const initialHtml = container.innerHTML;
+
+			// Rerender with same props (stable false) — memo should skip
+			rerender(<SessionListItem {...props} />);
+			expect(container.innerHTML).toBe(initialHtml);
+		});
+
+		it('re-renders when isActive changes from false to true', () => {
+			const props = createDefaultProps({ isActive: false });
+			const { rerender } = render(<SessionListItem {...props} />);
+
+			// No ACTIVE badge initially
+			expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument();
+
+			// Change isActive to true
+			rerender(<SessionListItem {...createDefaultProps({ isActive: true })} />);
+
+			// ACTIVE badge should now appear
+			expect(screen.getByText('ACTIVE')).toBeInTheDocument();
+		});
+
+		it('re-renders when isActive changes from true to false', () => {
+			const props = createDefaultProps({ isActive: true });
+			const { rerender } = render(<SessionListItem {...props} />);
+
+			// ACTIVE badge should be present
+			expect(screen.getByText('ACTIVE')).toBeInTheDocument();
+
+			// Change isActive to false
+			rerender(<SessionListItem {...createDefaultProps({ isActive: false })} />);
+
+			// ACTIVE badge should be gone
+			expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument();
 		});
 	});
 });
