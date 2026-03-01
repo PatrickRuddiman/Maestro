@@ -709,6 +709,11 @@ export const FilePreview = React.memo(
 			},
 			[onEditContentChange]
 		);
+		// Stable callback for CsvTableRenderer match count updates
+		const handleCsvMatchCount = useCallback((count: number) => {
+			setTotalMatches(count);
+			setCurrentMatchIndex(count > 0 ? 0 : -1);
+		}, []);
 		const [isSaving, setIsSaving] = useState(false);
 		const [showUnsavedChangesModal, setShowUnsavedChangesModal] = useState(false);
 		const [copyNotificationMessage, setCopyNotificationMessage] = useState('');
@@ -2384,10 +2389,7 @@ export const FilePreview = React.memo(
 							theme={theme}
 							delimiter={csvDelimiter}
 							searchQuery={searchQuery}
-							onMatchCount={(count) => {
-								setTotalMatches(count);
-								setCurrentMatchIndex(count > 0 ? 0 : -1);
-							}}
+							onMatchCount={handleCsvMatchCount}
 						/>
 					) : isMarkdown ? (
 						<div
