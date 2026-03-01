@@ -2164,14 +2164,10 @@ function SessionListInner(props: SessionListProps) {
 			ref={sidebarContainerRef}
 			tabIndex={0}
 			className={`border-r flex flex-col shrink-0 ${sidebarTransitionClass} outline-none relative z-20 ${activeFocus === 'sidebar' && !activeGroupChatId ? 'ring-1 ring-inset' : ''}`}
-			style={
-				{
-					width: leftSidebarOpen ? `${leftSidebarWidthState}px` : '64px',
-					backgroundColor: theme.colors.bgSidebar,
-					borderColor: theme.colors.border,
-					'--tw-ring-color': theme.colors.accent,
-				} as React.CSSProperties
-			}
+			style={styles.sidebarContainer(
+				leftSidebarOpen ? `${leftSidebarWidthState}px` : '64px',
+				theme.colors.accent
+			)}
 			onClick={() => setActiveFocus('sidebar')}
 			onFocus={() => setActiveFocus('sidebar')}
 			onKeyDown={(e) => {

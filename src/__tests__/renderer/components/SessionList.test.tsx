@@ -3591,4 +3591,59 @@ describe('SessionList', () => {
 			expect(segment?.className).toContain('animate-pulse');
 		});
 	});
+
+	describe('Sidebar Container Memoized Style', () => {
+		it('applies memoized sidebarContainer style with correct width when sidebar is open', () => {
+			useUIStore.setState({ leftSidebarOpen: true });
+			useSettingsStore.setState({ leftSidebarWidth: 320 });
+			const props = createDefaultProps({});
+			const { container } = render(<SessionList {...props} />);
+
+			// The root sidebar container is the first div child with border-r class
+			const sidebarRoot = container.querySelector('.border-r.flex.flex-col.shrink-0');
+			expect(sidebarRoot).toBeTruthy();
+			expect(sidebarRoot).toHaveStyle({
+				width: '320px',
+				backgroundColor: defaultTheme.colors.bgSidebar,
+				borderColor: defaultTheme.colors.border,
+			});
+		});
+
+		it('applies collapsed width (64px) when sidebar is closed', () => {
+			useUIStore.setState({ leftSidebarOpen: false });
+			const props = createDefaultProps({});
+			const { container } = render(<SessionList {...props} />);
+
+			const sidebarRoot = container.querySelector('.border-r.flex.flex-col.shrink-0');
+			expect(sidebarRoot).toBeTruthy();
+			expect(sidebarRoot).toHaveStyle({
+				width: '64px',
+				backgroundColor: defaultTheme.colors.bgSidebar,
+				borderColor: defaultTheme.colors.border,
+			});
+		});
+
+		it('uses theme colors from memoized styles (not inline object)', () => {
+			// This test verifies that the style properties match what
+			// styles.sidebarContainer() produces (bgSidebar, border, accent ring color)
+			useUIStore.setState({ leftSidebarOpen: true });
+			useSettingsStore.setState({ leftSidebarWidth: 280 });
+			const props = createDefaultProps({});
+			const { container } = render(<SessionList {...props} />);
+
+			const sidebarRoot = container.querySelector('.border-r.flex.flex-col.shrink-0');
+			expect(sidebarRoot).toBeTruthy();
+
+			// Verify style properties that sidebarContainer() produces
+			// Use toHaveStyle for color values (handles hex -> rgb conversion)
+			expect(sidebarRoot).toHaveStyle({
+				width: '280px',
+				backgroundColor: defaultTheme.colors.bgSidebar,
+				borderColor: defaultTheme.colors.border,
+			});
+			// --tw-ring-color is a CSS custom property set by sidebarContainer()
+			const style = (sidebarRoot as HTMLElement).style;
+			expect(style.getPropertyValue('--tw-ring-color')).toBe(defaultTheme.colors.accent);
+		});
+	});
 });
