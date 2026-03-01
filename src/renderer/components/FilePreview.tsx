@@ -842,6 +842,26 @@ export const FilePreview = React.memo(
 			return extractHeadings(file.content);
 		}, [isMarkdown, file?.content]);
 
+		// Pre-compute heading level colors for the TOC overlay once per theme change
+		// instead of recreating the object for every TOC entry inside .map()
+		const tocLevelColors = useMemo<Record<number, string>>(
+			() => ({
+				1: theme.colors.accent,
+				2: theme.colors.success,
+				3: theme.colors.warning,
+				4: theme.colors.textMain,
+				5: theme.colors.textMain,
+				6: theme.colors.textDim,
+			}),
+			[
+				theme.colors.accent,
+				theme.colors.success,
+				theme.colors.warning,
+				theme.colors.textMain,
+				theme.colors.textDim,
+			]
+		);
+
 		// Memoize formatted dates to avoid redundant Date parsing and toLocaleString on each render
 		const formattedModifiedAt = useMemo(
 			() => (fileStats?.modifiedAt ? formatDateTime(fileStats.modifiedAt) : ''),
@@ -2542,16 +2562,7 @@ export const FilePreview = React.memo(
 										onWheel={(e) => e.stopPropagation()}
 									>
 										{tocEntries.map((entry, index) => {
-											// Get color based on heading level (match the prose styles)
-											const levelColors: Record<number, string> = {
-												1: theme.colors.accent,
-												2: theme.colors.success,
-												3: theme.colors.warning,
-												4: theme.colors.textMain,
-												5: theme.colors.textMain,
-												6: theme.colors.textDim,
-											};
-											const headingColor = levelColors[entry.level] || theme.colors.textMain;
+											const headingColor = tocLevelColors[entry.level] || theme.colors.textMain;
 
 											return (
 												<button
