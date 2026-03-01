@@ -37,6 +37,7 @@ import {
 	useFilteredAndSortedSessions,
 	useClickOutside,
 	type ClaudeSession,
+	type SessionMessage,
 } from '../hooks';
 import { formatShortcutKeys } from '../utils/shortcutFormatter';
 
@@ -67,6 +68,75 @@ interface AgentSessionsBrowserProps {
 		updates: { name?: string | null; starred?: boolean }
 	) => void;
 }
+
+/**
+ * Props for the memoized session message list item.
+ * Receives stable primitives/objects so React.memo can skip re-renders
+ * when unrelated parent state changes (rename, star toggle, etc.).
+ */
+interface SessionMessageItemProps {
+	message: SessionMessage;
+	theme: Theme;
+}
+
+/**
+ * Memoized session message list item component.
+ *
+ * Extracted from the parent messages.map() loop so that individual messages
+ * skip re-renders when unrelated parent state changes. Each message's content,
+ * timestamp, and toolUse are stable across renders, making React.memo effective.
+ * formatRelativeTime() (which creates new Date objects and runs locale formatting)
+ * is only called when the component actually re-renders.
+ */
+const SessionMessageItem = React.memo(function SessionMessageItem({
+	message: msg,
+	theme,
+}: SessionMessageItemProps) {
+	return (
+		<div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+			{/* Tool call messages - render with ToolCallCard */}
+			{msg.toolUse && msg.toolUse.length > 0 ? (
+				<div className="max-w-[85%]">
+					<ToolCallCard
+						theme={theme}
+						toolUse={msg.toolUse}
+						timestamp={formatRelativeTime(msg.timestamp)}
+						defaultExpanded={false}
+					/>
+				</div>
+			) : (
+				/* Regular text messages */
+				<div
+					className="max-w-[75%] rounded-lg px-4 py-3 text-sm"
+					style={{
+						backgroundColor: msg.type === 'user' ? theme.colors.accent : theme.colors.bgActivity,
+						color:
+							msg.type === 'user'
+								? theme.mode === 'light'
+									? '#fff'
+									: '#000'
+								: theme.colors.textMain,
+					}}
+				>
+					<div className="whitespace-pre-wrap break-words">{msg.content || '[No content]'}</div>
+					<div
+						className="text-[10px] mt-2 opacity-60"
+						style={{
+							color:
+								msg.type === 'user'
+									? theme.mode === 'light'
+										? '#fff'
+										: '#000'
+									: theme.colors.textDim,
+						}}
+					>
+						{formatRelativeTime(msg.timestamp)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+});
 
 export function AgentSessionsBrowser({
 	theme,
@@ -1128,54 +1198,7 @@ export function AgentSessionsBrowser({
 
 						{/* Messages */}
 						{messages.map((msg, idx) => (
-							<div
-								key={msg.uuid || idx}
-								className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-							>
-								{/* Tool call messages - render with ToolCallCard */}
-								{msg.toolUse && msg.toolUse.length > 0 ? (
-									<div className="max-w-[85%]">
-										<ToolCallCard
-											theme={theme}
-											toolUse={msg.toolUse}
-											timestamp={formatRelativeTime(msg.timestamp)}
-											defaultExpanded={false}
-										/>
-									</div>
-								) : (
-									/* Regular text messages */
-									<div
-										className="max-w-[75%] rounded-lg px-4 py-3 text-sm"
-										style={{
-											backgroundColor:
-												msg.type === 'user' ? theme.colors.accent : theme.colors.bgActivity,
-											color:
-												msg.type === 'user'
-													? theme.mode === 'light'
-														? '#fff'
-														: '#000'
-													: theme.colors.textMain,
-										}}
-									>
-										<div className="whitespace-pre-wrap break-words">
-											{msg.content || '[No content]'}
-										</div>
-										<div
-											className="text-[10px] mt-2 opacity-60"
-											style={{
-												color:
-													msg.type === 'user'
-														? theme.mode === 'light'
-															? '#fff'
-															: '#000'
-														: theme.colors.textDim,
-											}}
-										>
-											{formatRelativeTime(msg.timestamp)}
-										</div>
-									</div>
-								)}
-							</div>
+							<SessionMessageItem key={msg.uuid || idx} message={msg} theme={theme} />
 						))}
 
 						{messagesLoading && messages.length === 0 && (

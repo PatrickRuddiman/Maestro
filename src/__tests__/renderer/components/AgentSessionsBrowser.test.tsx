@@ -3004,4 +3004,276 @@ describe('AgentSessionsBrowser', () => {
 			expect(screen.getByText('D02D0BD6-1234-5678-90AB-CDEFGHIJKLMN')).toBeInTheDocument();
 		});
 	});
+
+	// ============================================================================
+	// SessionMessageItem Memoization Tests
+	// ============================================================================
+
+	describe('SessionMessageItem memoized component', () => {
+		it('renders user messages with correct alignment and styling', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const messages = [
+				createMockMessage({
+					type: 'user',
+					content: 'User question here',
+					uuid: 'msg-user-1',
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 1,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			const userMsg = screen.getByText('User question here');
+			expect(userMsg).toBeInTheDocument();
+			// User messages should be right-aligned (justify-end)
+			const container = userMsg.closest('.flex');
+			expect(container?.className).toContain('justify-end');
+		});
+
+		it('renders assistant messages with correct alignment', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const messages = [
+				createMockMessage({
+					type: 'assistant',
+					content: 'Assistant response here',
+					uuid: 'msg-assistant-1',
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 1,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			const assistantMsg = screen.getByText('Assistant response here');
+			expect(assistantMsg).toBeInTheDocument();
+			// Assistant messages should be left-aligned (justify-start)
+			const container = assistantMsg.closest('.flex');
+			expect(container?.className).toContain('justify-start');
+		});
+
+		it('renders multiple messages with timestamps', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const now = Date.now();
+			const messages = [
+				createMockMessage({
+					type: 'user',
+					content: 'Message one',
+					uuid: 'msg-1',
+					timestamp: new Date(now - 5 * 60 * 1000).toISOString(), // 5m ago
+				}),
+				createMockMessage({
+					type: 'assistant',
+					content: 'Message two',
+					uuid: 'msg-2',
+					timestamp: new Date(now - 3 * 60 * 1000).toISOString(), // 3m ago
+				}),
+				createMockMessage({
+					type: 'user',
+					content: 'Message three',
+					uuid: 'msg-3',
+					timestamp: new Date(now - 1 * 60 * 1000).toISOString(), // 1m ago
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 3,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			expect(screen.getByText('Message one')).toBeInTheDocument();
+			expect(screen.getByText('Message two')).toBeInTheDocument();
+			expect(screen.getByText('Message three')).toBeInTheDocument();
+			// Timestamps should be formatted as relative times
+			expect(screen.getByText('5m ago')).toBeInTheDocument();
+			expect(screen.getByText('3m ago')).toBeInTheDocument();
+			expect(screen.getByText('1m ago')).toBeInTheDocument();
+		});
+
+		it('renders tool call messages via ToolCallCard', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const messages = [
+				createMockMessage({
+					type: 'assistant',
+					content: '',
+					uuid: 'msg-tool-1',
+					toolUse: [{ name: 'bash_command' }],
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 1,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			// ToolCallCard shows tool name in "Tool: <name>" format
+			expect(screen.getByText('Tool: bash_command')).toBeInTheDocument();
+		});
+
+		it('renders empty content messages with placeholder', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const messages = [
+				createMockMessage({
+					type: 'assistant',
+					content: '',
+					uuid: 'msg-empty-1',
+					toolUse: undefined,
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 1,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			expect(screen.getByText('[No content]')).toBeInTheDocument();
+		});
+
+		it('renders mixed message types correctly', async () => {
+			const session = createMockClaudeSession({ sessionId: 'session-1' });
+			const messages = [
+				createMockMessage({
+					type: 'user',
+					content: 'Can you read this file?',
+					uuid: 'msg-1',
+				}),
+				createMockMessage({
+					type: 'assistant',
+					content: '',
+					uuid: 'msg-2',
+					toolUse: [{ name: 'file_read' }],
+				}),
+				createMockMessage({
+					type: 'assistant',
+					content: 'Here are the file contents.',
+					uuid: 'msg-3',
+				}),
+			];
+			vi.mocked(window.maestro.agentSessions.listPaginated).mockResolvedValue({
+				sessions: [session],
+				hasMore: false,
+				totalCount: 1,
+				nextCursor: null,
+			});
+			vi.mocked(window.maestro.agentSessions.read).mockResolvedValue({
+				messages,
+				total: 3,
+				hasMore: false,
+			});
+
+			await act(async () => {
+				renderWithProvider(<AgentSessionsBrowser {...createDefaultProps()} />);
+				await vi.runAllTimersAsync();
+			});
+
+			const sessionItem = screen
+				.getByText(/Help me with this code/i)
+				.closest('div[class*="cursor-pointer"]');
+			await act(async () => {
+				fireEvent.click(sessionItem!);
+				await vi.runAllTimersAsync();
+			});
+
+			expect(screen.getByText('Can you read this file?')).toBeInTheDocument();
+			expect(screen.getByText('Tool: file_read')).toBeInTheDocument();
+			expect(screen.getByText('Here are the file contents.')).toBeInTheDocument();
+		});
+	});
 });
