@@ -1030,6 +1030,130 @@ const SessionTooltipContent = memo(function SessionTooltipContent({
 	);
 });
 
+// ============================================================================
+// CollapsedPillSegment - Individual segment in a collapsed session pill
+// PERF: Manages its own tooltip position via ref + direct DOM manipulation,
+// avoiding React state updates that would re-render the entire SessionListInner
+// ============================================================================
+
+interface CollapsedPillSegmentProps {
+	session: Session;
+	keyPrefix: string;
+	theme: Theme;
+	isFirst: boolean;
+	isLast: boolean;
+	hasWorktrees: boolean;
+	hasUnreadTabs: boolean;
+	isInBatch: boolean;
+	leftSidebarWidth: number;
+	gitFileCount: number | undefined;
+	contextWarningYellowThreshold: number;
+	contextWarningRedThreshold: number;
+	errorBgStyle: React.CSSProperties;
+	onSelect: (id: string) => void;
+}
+
+const CollapsedPillSegment = memo(function CollapsedPillSegment({
+	session,
+	keyPrefix,
+	theme,
+	isFirst,
+	isLast,
+	hasWorktrees,
+	hasUnreadTabs,
+	isInBatch,
+	leftSidebarWidth,
+	gitFileCount,
+	contextWarningYellowThreshold,
+	contextWarningRedThreshold,
+	errorBgStyle,
+	onSelect,
+}: CollapsedPillSegmentProps) {
+	const tooltipRef = useRef<HTMLDivElement>(null);
+
+	const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+		if (tooltipRef.current) {
+			tooltipRef.current.style.top = `${e.clientY}px`;
+		}
+	}, []);
+
+	const segmentStyle = useMemo(
+		() => ({
+			...(session.toolType === 'claude-code' && !session.agentSessionId && !isInBatch
+				? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
+				: {
+						backgroundColor: isInBatch
+							? theme.colors.warning
+							: getStatusColor(session.state, theme),
+					}),
+			borderRadius: hasWorktrees
+				? `${isFirst ? '9999px' : '0'} ${isLast ? '9999px' : '0'} ${isLast ? '9999px' : '0'} ${isFirst ? '9999px' : '0'}`
+				: '9999px',
+		}),
+		[
+			session.toolType,
+			session.agentSessionId,
+			session.state,
+			isInBatch,
+			isFirst,
+			isLast,
+			hasWorktrees,
+			theme,
+		]
+	);
+
+	const tooltipStyle = useMemo(
+		() => ({
+			minWidth: '240px',
+			left: `${leftSidebarWidth + 8}px`,
+			backgroundColor: theme.colors.bgSidebar,
+			border: `1px solid ${theme.colors.border}`,
+		}),
+		[leftSidebarWidth, theme.colors.bgSidebar, theme.colors.border]
+	);
+
+	const handleClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onSelect(session.id);
+		},
+		[onSelect, session.id]
+	);
+
+	return (
+		<div
+			key={`${keyPrefix}-part-${session.id}`}
+			className={`group/segment relative flex-1 h-full ${isInBatch ? 'animate-pulse' : ''}`}
+			style={segmentStyle}
+			onMouseEnter={handleMouseEnter}
+			onClick={handleClick}
+		>
+			{/* Unread indicator - only on last segment */}
+			{hasUnreadTabs && isLast && (
+				<div
+					className="absolute -right-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
+					style={errorBgStyle}
+				/>
+			)}
+			{/* Hover Tooltip - per segment */}
+			<div
+				ref={tooltipRef}
+				className="fixed rounded px-3 py-2 z-[100] opacity-0 group-hover/segment:opacity-100 pointer-events-none transition-opacity shadow-xl"
+				style={tooltipStyle}
+			>
+				<SessionTooltipContent
+					session={session}
+					theme={theme}
+					gitFileCount={gitFileCount}
+					isInBatch={isInBatch}
+					contextWarningYellowThreshold={contextWarningYellowThreshold}
+					contextWarningRedThreshold={contextWarningRedThreshold}
+				/>
+			</div>
+		</div>
+	);
+});
+
 // Pre-compiled emoji regex for better performance (compiled once at module load)
 // Matches common emoji patterns at the start of the string including:
 // - Basic emojis (😀, 🎉, etc.)
@@ -1277,7 +1401,6 @@ function SessionListInner(props: SessionListProps) {
 	const contextMenuSession = contextMenu
 		? sessions.find((s) => s.id === contextMenu.sessionId)
 		: null;
-	const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 	const menuRef = useRef<HTMLDivElement>(null);
 
 	// Toggle bookmark for a session - memoized to prevent SessionItem re-renders
@@ -1572,6 +1695,8 @@ function SessionListInner(props: SessionListProps) {
 	};
 
 	// Helper component: Renders a collapsed session pill with subdivided parts for worktrees
+	// PERF: Uses CollapsedPillSegment sub-component so tooltip position state
+	// is isolated per-segment and doesn't trigger SessionListInner re-renders
 	const renderCollapsedPill = (session: Session, keyPrefix: string, _onExpand: () => void) => {
 		const worktreeChildren = getWorktreeChildren(session.id);
 		const allSessions = [session, ...worktreeChildren];
@@ -1585,63 +1710,29 @@ function SessionListInner(props: SessionListProps) {
 				style={{ gap: hasWorktrees ? '1px' : 0 }}
 			>
 				{allSessions.map((s, idx) => {
-					const hasUnreadTabs = s.aiTabs?.some((tab) => tab.hasUnread);
+					const hasUnreadTabs = !!s.aiTabs?.some((tab) => tab.hasUnread);
 					const isFirst = idx === 0;
 					const isLast = idx === allSessions.length - 1;
 					const isInBatch = activeBatchSessionIds.includes(s.id);
 
 					return (
-						<div
+						<CollapsedPillSegment
 							key={`${keyPrefix}-part-${s.id}`}
-							className={`group/segment relative flex-1 h-full ${isInBatch ? 'animate-pulse' : ''}`}
-							style={{
-								...(s.toolType === 'claude-code' && !s.agentSessionId && !isInBatch
-									? { border: `1px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
-									: {
-											backgroundColor: isInBatch
-												? theme.colors.warning
-												: getStatusColor(s.state, theme),
-										}),
-								// Rounded ends only on first/last
-								borderRadius: hasWorktrees
-									? `${isFirst ? '9999px' : '0'} ${isLast ? '9999px' : '0'} ${isLast ? '9999px' : '0'} ${isFirst ? '9999px' : '0'}`
-									: '9999px',
-							}}
-							onMouseEnter={(e) => setTooltipPosition({ x: e.clientX, y: e.clientY })}
-							onMouseLeave={() => setTooltipPosition(null)}
-							onClick={(e) => {
-								e.stopPropagation();
-								setActiveSessionId(s.id);
-							}}
-						>
-							{/* Unread indicator - only on last segment */}
-							{hasUnreadTabs && isLast && (
-								<div
-									className="absolute -right-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
-									style={styles.errorBg}
-								/>
-							)}
-							{/* Hover Tooltip - per segment */}
-							<div
-								className="fixed rounded px-3 py-2 z-[100] opacity-0 group-hover/segment:opacity-100 pointer-events-none transition-opacity shadow-xl"
-								style={{
-									minWidth: '240px',
-									left: `${leftSidebarWidthState + 8}px`,
-									top: tooltipPosition ? `${tooltipPosition.y}px` : undefined,
-									backgroundColor: theme.colors.bgSidebar,
-									border: `1px solid ${theme.colors.border}`,
-								}}
-							>
-								<SessionTooltipContent
-									session={s}
-									theme={theme}
-									gitFileCount={getFileCount(s.id)}
-									isInBatch={isInBatch}
-									contextWarningYellowThreshold={contextWarningYellowThreshold}
-									contextWarningRedThreshold={contextWarningRedThreshold}
-								/>
-							</div>
-						</div>
+							session={s}
+							keyPrefix={keyPrefix}
+							theme={theme}
+							isFirst={isFirst}
+							isLast={isLast}
+							hasWorktrees={hasWorktrees}
+							hasUnreadTabs={hasUnreadTabs}
+							isInBatch={isInBatch}
+							leftSidebarWidth={leftSidebarWidthState}
+							gitFileCount={getFileCount(s.id)}
+							contextWarningYellowThreshold={contextWarningYellowThreshold}
+							contextWarningRedThreshold={contextWarningRedThreshold}
+							errorBgStyle={styles.errorBg}
+							onSelect={setActiveSessionId}
+						/>
 					);
 				})}
 			</div>
@@ -3090,3 +3181,6 @@ function SessionListInner(props: SessionListProps) {
 }
 
 export const SessionList = memo(SessionListInner);
+
+// Exported for testing only
+export { CollapsedPillSegment as _CollapsedPillSegment };

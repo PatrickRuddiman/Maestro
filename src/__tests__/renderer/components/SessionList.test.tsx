@@ -3391,4 +3391,154 @@ describe('SessionList', () => {
 			expect(screen.getByText('Transition Test')).toBeInTheDocument();
 		});
 	});
+
+	// ============================================================================
+	// CollapsedPillSegment Tests (PERF-08: tooltip position isolation)
+	// ============================================================================
+
+	describe('CollapsedPillSegment', () => {
+		it('renders tooltip content with session details on hover', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const sessions = [
+				createMockSession({
+					id: 's1',
+					name: 'Pill Tooltip Session',
+					groupId: 'g1',
+					contextUsage: 45,
+				}),
+			];
+			useSessionStore.setState({ sessions, groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+			const { container } = render(<SessionList {...props} />);
+
+			// Find the collapsed pill segment
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segment = pillContainer?.querySelector('.flex-1.h-full');
+			expect(segment).toBeTruthy();
+
+			// Hover to trigger tooltip position update via ref
+			fireEvent.mouseEnter(segment!, { clientX: 200, clientY: 300 });
+
+			// Tooltip should contain session info
+			expect(screen.getByText('Pill Tooltip Session')).toBeInTheDocument();
+			expect(screen.getByText('45%')).toBeInTheDocument();
+		});
+
+		it('updates tooltip top position via ref on mouseEnter', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const sessions = [createMockSession({ id: 's1', name: 'Ref Tooltip', groupId: 'g1' })];
+			useSessionStore.setState({ sessions, groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+			const { container } = render(<SessionList {...props} />);
+
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segment = pillContainer?.querySelector('.flex-1.h-full');
+			expect(segment).toBeTruthy();
+
+			// The tooltip div is a child with the fixed class
+			const tooltipDiv = segment?.querySelector('.fixed.rounded');
+			expect(tooltipDiv).toBeTruthy();
+
+			// Hover with specific clientY
+			fireEvent.mouseEnter(segment!, { clientX: 100, clientY: 250 });
+
+			// The ref-based approach should set top style directly on the tooltip element
+			expect(tooltipDiv).toHaveStyle({ top: '250px' });
+		});
+
+		it('does not trigger parent re-render on tooltip hover (uses ref not state)', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const session = createMockSession({
+				id: 's-parent',
+				name: 'Parent Session',
+				groupId: 'g1',
+			});
+			const child = createMockSession({
+				id: 's-child',
+				name: 'Child Session',
+				groupId: 'g1',
+				parentSessionId: 's-parent',
+			});
+			useSessionStore.setState({ sessions: [session, child], groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: [session, child] });
+			const { container } = render(<SessionList {...props} />);
+
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segments = pillContainer?.querySelectorAll('.flex-1.h-full');
+			expect(segments?.length).toBe(2);
+
+			// Hover over first segment multiple times — should not cause errors or re-renders
+			fireEvent.mouseEnter(segments![0], { clientX: 100, clientY: 100 });
+			fireEvent.mouseEnter(segments![0], { clientX: 100, clientY: 200 });
+			fireEvent.mouseEnter(segments![0], { clientX: 100, clientY: 300 });
+
+			// Both segments should still be in DOM (no re-render wipe)
+			expect(segments![0]).toBeInTheDocument();
+			expect(segments![1]).toBeInTheDocument();
+		});
+
+		it('calls setActiveSessionId on segment click', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const sessions = [createMockSession({ id: 's-click', name: 'Clickable', groupId: 'g1' })];
+			useSessionStore.setState({ sessions, groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const setActive = vi.spyOn(useSessionStore.getState(), 'setActiveSessionId');
+			const props = createDefaultProps({ sortedSessions: sessions });
+			const { container } = render(<SessionList {...props} />);
+
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segment = pillContainer?.querySelector('.flex-1.h-full');
+			fireEvent.click(segment!);
+			expect(setActive).toHaveBeenCalledWith('s-click');
+		});
+
+		it('shows unread indicator on last segment when hasUnreadTabs is true', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const sessions = [
+				createMockSession({
+					id: 's1',
+					name: 'Unread Session',
+					groupId: 'g1',
+					aiTabs: [{ hasUnread: true, tabId: 't1', label: 'Tab 1' }],
+				}),
+			];
+			useSessionStore.setState({ sessions, groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({ sortedSessions: sessions });
+			const { container } = render(<SessionList {...props} />);
+
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segment = pillContainer?.querySelector('.flex-1.h-full');
+			// The unread indicator is a small circle inside the segment
+			const unreadDot = segment?.querySelector('.w-1\\.5.h-1\\.5.rounded-full');
+			expect(unreadDot).toBeTruthy();
+		});
+
+		it('applies batch styling when session is in active batch', () => {
+			const group = createMockGroup({ id: 'g1', name: 'Group', collapsed: true });
+			const sessions = [createMockSession({ id: 's-batch', name: 'Batch Session', groupId: 'g1' })];
+			useSessionStore.setState({ sessions, groups: [group] });
+			useUIStore.setState({ leftSidebarOpen: true });
+			useBatchStore.setState({
+				batchRunStates: {
+					's-batch': {
+						isRunning: true,
+						isStopping: false,
+						prompt: 'test',
+						startedAt: Date.now(),
+					} as BatchRunState,
+				},
+			});
+			const props = createDefaultProps({ sortedSessions: sessions });
+			const { container } = render(<SessionList {...props} />);
+
+			const pillContainer = container.querySelector('.flex-1.flex.rounded-full');
+			const segment = pillContainer?.querySelector('.flex-1.h-full');
+			// Batch sessions should have animate-pulse class
+			expect(segment?.className).toContain('animate-pulse');
+		});
+	});
 });
