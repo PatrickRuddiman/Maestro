@@ -59,7 +59,8 @@ export const CREATE_QUERY_EVENTS_INDEXES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_time_project ON query_events(start_time, project_path);
   CREATE INDEX IF NOT EXISTS idx_query_time_source ON query_events(start_time, source);
   CREATE INDEX IF NOT EXISTS idx_query_agent_time ON query_events(agent_type, start_time);
-  CREATE INDEX IF NOT EXISTS idx_query_source_time ON query_events(source, start_time)
+  CREATE INDEX IF NOT EXISTS idx_query_source_time ON query_events(source, start_time);
+  CREATE INDEX IF NOT EXISTS idx_query_date ON query_events(date(start_time / 1000, 'unixepoch', 'localtime'))
 `;
 
 // ============================================================================
@@ -164,6 +165,18 @@ export const CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL = `
 
 export const CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_query_source_time ON query_events(source, start_time)
+`;
+
+// ============================================================================
+// Expression Index for Daily Aggregation (Migration v7)
+//
+// SQLite expression index on the computed date expression used by queryByDay.
+// Eliminates the TEMP B-TREE for GROUP BY date(...) by allowing SQLite to
+// use the index for grouping and ordering on the computed date value.
+// ============================================================================
+
+export const CREATE_DATE_EXPRESSION_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_query_date ON query_events(date(start_time / 1000, 'unixepoch', 'localtime'))
 `;
 
 // ============================================================================

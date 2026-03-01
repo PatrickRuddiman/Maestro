@@ -218,8 +218,8 @@ describe('StatsDB class (mocked)', () => {
 			const db = new StatsDB();
 			await db.initialize();
 
-			// Should set user_version to 6
-			expect(mockDb.pragma).toHaveBeenCalledWith('user_version = 6');
+			// Should set user_version to 7 (latest migration)
+			expect(mockDb.pragma).toHaveBeenCalledWith('user_version = 7');
 
 			// Should have created the optimized reverse compound indexes
 			const prepareCalls = mockDb.prepare.mock.calls.map((call) => call[0]);
@@ -324,13 +324,13 @@ describe('StatsDB class (mocked)', () => {
 			const db = new StatsDB();
 			await db.initialize();
 
-			// Currently we have version 6 migration (v1: initial schema, v2: is_remote column, v3: session_lifecycle table, v4: compound indexes, v5: optimized agent_time index, v6: optimized source_time index)
-			expect(db.getTargetVersion()).toBe(6);
+			// Currently we have version 7 migration (v1: initial schema, v2: is_remote column, v3: session_lifecycle table, v4: compound indexes, v5: optimized agent_time index, v6: optimized source_time index, v7: date expression index)
+			expect(db.getTargetVersion()).toBe(7);
 		});
 
 		it('should return false from hasPendingMigrations() when up to date', async () => {
 			mockDb.pragma.mockImplementation((sql: string) => {
-				if (sql === 'user_version') return [{ user_version: 6 }];
+				if (sql === 'user_version') return [{ user_version: 7 }];
 				return undefined;
 			});
 
@@ -345,8 +345,8 @@ describe('StatsDB class (mocked)', () => {
 			// This test verifies the hasPendingMigrations() logic
 			// by checking current version < target version
 
-			// Simulate a database that's already at version 6 (target version)
-			let currentVersion = 6;
+			// Simulate a database that's already at version 7 (target version)
+			let currentVersion = 7;
 			mockDb.pragma.mockImplementation((sql: string) => {
 				if (sql === 'user_version') return [{ user_version: currentVersion }];
 				// Handle version updates from migration
@@ -360,9 +360,9 @@ describe('StatsDB class (mocked)', () => {
 			const db = new StatsDB();
 			await db.initialize();
 
-			// At version 6, target is 6, so no pending migrations
-			expect(db.getCurrentVersion()).toBe(6);
-			expect(db.getTargetVersion()).toBe(6);
+			// At version 7, target is 7, so no pending migrations
+			expect(db.getCurrentVersion()).toBe(7);
+			expect(db.getTargetVersion()).toBe(7);
 			expect(db.hasPendingMigrations()).toBe(false);
 		});
 

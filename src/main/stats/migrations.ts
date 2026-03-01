@@ -27,6 +27,7 @@ import {
 	CREATE_COMPOUND_INDEXES_SQL,
 	CREATE_OPTIMIZED_AGENT_TIME_INDEX_SQL,
 	CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL,
+	CREATE_DATE_EXPRESSION_INDEX_SQL,
 	runStatements,
 } from './schema';
 import { LOG_CONTEXT } from './utils';
@@ -73,6 +74,12 @@ export function getMigrations(): Migration[] {
 			description:
 				'Add optimized reverse compound index (source, start_time) for source GROUP BY + time range queries',
 			up: (db) => migrateV6(db),
+		},
+		{
+			version: 7,
+			description:
+				'Add expression index on date(start_time) for daily aggregation GROUP BY without TEMP B-TREE',
+			up: (db) => migrateV7(db),
 		},
 	];
 }
@@ -290,4 +297,18 @@ function migrateV6(db: Database.Database): void {
 	runStatements(db, CREATE_OPTIMIZED_SOURCE_TIME_INDEX_SQL);
 
 	logger.debug('Added optimized reverse compound index (source, start_time)', LOG_CONTEXT);
+}
+
+/**
+ * Migration v7: Add expression index on computed date for daily aggregation
+ *
+ * The queryByDay query groups by `date(start_time / 1000, 'unixepoch', 'localtime')`,
+ * which requires a TEMP B-TREE for GROUP BY since SQLite cannot use regular column
+ * indexes for computed expressions. This expression index allows SQLite to use the
+ * index for both grouping and ordering, eliminating the temporary sort.
+ */
+function migrateV7(db: Database.Database): void {
+	runStatements(db, CREATE_DATE_EXPRESSION_INDEX_SQL);
+
+	logger.debug('Added expression index on date(start_time) for daily aggregation', LOG_CONTEXT);
 }
