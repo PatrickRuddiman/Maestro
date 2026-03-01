@@ -44,10 +44,8 @@ export interface SearchResultInfo {
 export interface SessionListItemProps {
 	/** The Claude session data */
 	session: ClaudeSession;
-	/** Zero-based index in the list */
-	index: number;
-	/** Currently selected index for keyboard navigation */
-	selectedIndex: number;
+	/** Whether this item is the currently selected item for keyboard navigation */
+	isSelected: boolean;
 	/** Whether this session is starred */
 	isStarred: boolean;
 	/** Currently active Claude session ID (if any) */
@@ -87,8 +85,7 @@ export interface SessionListItemProps {
  */
 export const SessionListItem = memo(function SessionListItem({
 	session,
-	index,
-	selectedIndex,
+	isSelected,
 	isStarred,
 	activeAgentSessionId,
 	renamingSessionId,
@@ -106,7 +103,6 @@ export const SessionListItem = memo(function SessionListItem({
 	onSubmitRename,
 	onCancelRename,
 }: SessionListItemProps) {
-	const isSelected = index === selectedIndex;
 	const isRenaming = renamingSessionId === session.sessionId;
 	const isActive = activeAgentSessionId === session.sessionId;
 
