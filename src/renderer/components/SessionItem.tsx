@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Activity, GitBranch, Bot, Bookmark, AlertCircle, Server } from 'lucide-react';
 import type { Session, Group, Theme } from '../types';
 import { getStatusColor } from '../utils/theme';
@@ -88,6 +88,79 @@ export const SessionItem = memo(function SessionItem({
 	const showGitLocalBadge =
 		variant !== 'bookmark' && variant !== 'worktree' && session.toolType !== 'terminal';
 
+	// PERF: Pre-compute all style objects in a single useMemo to avoid creating
+	// new object allocations on every re-render. This component is React.memo'd,
+	// but inline style={{...}} objects defeat parent-level memoization checks.
+	const isRemote = !!session.sessionSshRemoteConfig?.enabled;
+	const isClaudeNoSession =
+		session.toolType === 'claude-code' && !session.agentSessionId && !isInBatch;
+	const styles = useMemo(() => {
+		const { accent, bgMain, bgActivity, textMain, textDim, warning, error } = theme.colors;
+		return {
+			container: {
+				borderColor: isActive || isKeyboardSelected ? accent : 'transparent',
+				backgroundColor: isActive
+					? bgActivity
+					: isKeyboardSelected
+						? bgActivity + '40'
+						: 'transparent',
+			} as React.CSSProperties,
+			renameInput: { borderColor: accent } as React.CSSProperties,
+			accentColor: { color: accent } as React.CSSProperties,
+			sessionName: { color: isActive ? textMain : textDim } as React.CSSProperties,
+			jumpNumberBadge: {
+				backgroundColor: accent,
+				color: bgMain,
+			} as React.CSSProperties,
+			groupBadge: {
+				backgroundColor: bgActivity,
+				color: textDim,
+			} as React.CSSProperties,
+			gitDirtyIndicator: { color: warning } as React.CSSProperties,
+			sshPill: {
+				backgroundColor: warning + '30',
+				color: warning,
+			} as React.CSSProperties,
+			gitPill: {
+				backgroundColor: accent + '30',
+				color: accent,
+			} as React.CSSProperties,
+			localPill: (remote: boolean) =>
+				({
+					backgroundColor: remote ? warning + '30' : textDim + '20',
+					color: remote ? warning : textDim,
+				}) as React.CSSProperties,
+			autoPill: {
+				backgroundColor: warning + '30',
+				color: warning,
+			} as React.CSSProperties,
+			errorPill: {
+				backgroundColor: error + '30',
+				color: error,
+			} as React.CSSProperties,
+			unreadBadge: { backgroundColor: error } as React.CSSProperties,
+			statusIndicator: (
+				sessionState: Session['state'],
+				batchActive: boolean,
+				noSession: boolean
+			) => {
+				if (noSession) {
+					return {
+						border: `1.5px solid ${textDim}`,
+						backgroundColor: 'transparent',
+					} as React.CSSProperties;
+				}
+				return {
+					backgroundColor: batchActive ? warning : getStatusColor(sessionState, theme),
+				} as React.CSSProperties;
+			},
+		};
+	}, [isActive, isKeyboardSelected, theme, isInBatch]);
+
+	// Pre-compute dynamic styles that depend on session-level data outside the useMemo
+	const localPillStyle = styles.localPill(isRemote);
+	const statusIndicatorStyle = styles.statusIndicator(session.state, isInBatch, isClaudeNoSession);
+
 	// Determine container styling based on variant
 	const getContainerClassName = () => {
 		const base = `cursor-move flex items-center justify-between group border-l-2 transition-all hover:bg-opacity-50 ${isDragging ? 'opacity-50' : ''}`;
@@ -112,14 +185,7 @@ export const SessionItem = memo(function SessionItem({
 			onClick={onSelect}
 			onContextMenu={onContextMenu}
 			className={getContainerClassName()}
-			style={{
-				borderColor: isActive || isKeyboardSelected ? theme.colors.accent : 'transparent',
-				backgroundColor: isActive
-					? theme.colors.bgActivity
-					: isKeyboardSelected
-						? theme.colors.bgActivity + '40'
-						: 'transparent',
-			}}
+			style={styles.container}
 		>
 			{/* Left side: Session name and metadata */}
 			<div className="min-w-0 flex-1">
@@ -127,7 +193,7 @@ export const SessionItem = memo(function SessionItem({
 					<input
 						autoFocus
 						className="bg-transparent text-sm font-medium outline-none w-full border-b"
-						style={{ borderColor: theme.colors.accent }}
+						style={styles.renameInput}
 						defaultValue={session.name}
 						onClick={(e) => e.stopPropagation()}
 						onBlur={(e) => onFinishRename(e.target.value)}
@@ -142,17 +208,17 @@ export const SessionItem = memo(function SessionItem({
 						{variant === 'bookmark' && session.bookmarked && (
 							<Bookmark
 								className="w-3 h-3 shrink-0"
-								style={{ color: theme.colors.accent }}
+								style={styles.accentColor}
 								fill={theme.colors.accent}
 							/>
 						)}
 						{/* Branch icon for worktree children */}
 						{variant === 'worktree' && (
-							<GitBranch className="w-3 h-3 shrink-0" style={{ color: theme.colors.accent }} />
+							<GitBranch className="w-3 h-3 shrink-0" style={styles.accentColor} />
 						)}
 						<span
 							className={`font-medium truncate ${variant === 'worktree' ? 'text-xs' : 'text-sm'}`}
-							style={{ color: isActive ? theme.colors.textMain : theme.colors.textDim }}
+							style={styles.sessionName}
 						>
 							{session.name}
 						</span>
@@ -166,10 +232,7 @@ export const SessionItem = memo(function SessionItem({
 						{jumpNumber && (
 							<div
 								className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
-								style={{
-									backgroundColor: theme.colors.accent,
-									color: theme.colors.bgMain,
-								}}
+								style={styles.jumpNumberBadge}
 							>
 								{jumpNumber}
 							</div>
@@ -178,10 +241,7 @@ export const SessionItem = memo(function SessionItem({
 						{session.sessionSshRemoteConfig?.enabled ? ' (SSH)' : ''}
 						{/* Group badge (only in bookmark variant when session belongs to a group) */}
 						{variant === 'bookmark' && group && (
-							<span
-								className="text-[9px] px-1 py-0.5 rounded"
-								style={{ backgroundColor: theme.colors.bgActivity, color: theme.colors.textDim }}
-							>
+							<span className="text-[9px] px-1 py-0.5 rounded" style={styles.groupBadge}>
 								{group.name}
 							</span>
 						)}
@@ -193,10 +253,7 @@ export const SessionItem = memo(function SessionItem({
 			<div className="flex items-center gap-2 ml-2">
 				{/* Git Dirty Indicator (only in wide mode) - placed before GIT/LOCAL for vertical alignment */}
 				{leftSidebarOpen && session.isGitRepo && gitFileCount !== undefined && gitFileCount > 0 && (
-					<div
-						className="flex items-center gap-0.5 text-[10px]"
-						style={{ color: theme.colors.warning }}
-					>
+					<div className="flex items-center gap-0.5 text-[10px]" style={styles.gitDirtyIndicator}>
 						<GitBranch className="w-2.5 h-2.5" />
 						<span>{gitFileCount}</span>
 					</div>
@@ -210,10 +267,7 @@ export const SessionItem = memo(function SessionItem({
 							{session.sessionSshRemoteConfig?.enabled && (
 								<div
 									className="px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center"
-									style={{
-										backgroundColor: theme.colors.warning + '30',
-										color: theme.colors.warning,
-									}}
+									style={styles.sshPill}
 									title="Running on remote host via SSH"
 								>
 									<Server className="w-3 h-3" />
@@ -221,10 +275,7 @@ export const SessionItem = memo(function SessionItem({
 							)}
 							<div
 								className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-								style={{
-									backgroundColor: theme.colors.accent + '30',
-									color: theme.colors.accent,
-								}}
+								style={styles.gitPill}
 								title="Git repository"
 							>
 								GIT
@@ -234,14 +285,7 @@ export const SessionItem = memo(function SessionItem({
 						/* Plain directory: Show REMOTE or LOCAL (not both) */
 						<div
 							className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-							style={{
-								backgroundColor: session.sessionSshRemoteConfig?.enabled
-									? theme.colors.warning + '30'
-									: theme.colors.textDim + '20',
-								color: session.sessionSshRemoteConfig?.enabled
-									? theme.colors.warning
-									: theme.colors.textDim,
-							}}
+							style={localPillStyle}
 							title={
 								session.sessionSshRemoteConfig?.enabled
 									? 'Running on remote host via SSH'
@@ -256,10 +300,7 @@ export const SessionItem = memo(function SessionItem({
 				{isInBatch && (
 					<div
 						className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase animate-pulse"
-						style={{
-							backgroundColor: theme.colors.warning + '30',
-							color: theme.colors.warning,
-						}}
+						style={styles.autoPill}
 						title="Auto Run active"
 					>
 						<Bot className="w-2.5 h-2.5" />
@@ -271,7 +312,7 @@ export const SessionItem = memo(function SessionItem({
 				{session.agentError && (
 					<div
 						className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-						style={{ backgroundColor: theme.colors.error + '30', color: theme.colors.error }}
+						style={styles.errorPill}
 						title={`Error: ${session.agentError.message}`}
 					>
 						<AlertCircle className="w-2.5 h-2.5" />
@@ -292,7 +333,7 @@ export const SessionItem = memo(function SessionItem({
 						>
 							<Bookmark
 								className="w-3 h-3"
-								style={{ color: theme.colors.accent }}
+								style={styles.accentColor}
 								fill={session.bookmarked ? theme.colors.accent : 'none'}
 							/>
 						</button>
@@ -305,11 +346,7 @@ export const SessionItem = memo(function SessionItem({
 							className="p-0.5 rounded hover:bg-white/10 transition-colors"
 							title="Remove bookmark"
 						>
-							<Bookmark
-								className="w-3 h-3"
-								style={{ color: theme.colors.accent }}
-								fill={theme.colors.accent}
-							/>
+							<Bookmark className="w-3 h-3" style={styles.accentColor} fill={theme.colors.accent} />
 						</button>
 					))}
 
@@ -317,15 +354,7 @@ export const SessionItem = memo(function SessionItem({
 				<div className="relative ml-auto">
 					<div
 						className={`w-2 h-2 rounded-full ${session.state === 'connecting' ? 'animate-pulse' : session.state === 'busy' || isInBatch ? 'animate-pulse' : ''}`}
-						style={
-							session.toolType === 'claude-code' && !session.agentSessionId && !isInBatch
-								? { border: `1.5px solid ${theme.colors.textDim}`, backgroundColor: 'transparent' }
-								: {
-										backgroundColor: isInBatch
-											? theme.colors.warning
-											: getStatusColor(session.state, theme),
-									}
-						}
+						style={statusIndicatorStyle}
 						title={
 							session.toolType === 'claude-code' && !session.agentSessionId
 								? 'No active Claude session'
@@ -346,7 +375,7 @@ export const SessionItem = memo(function SessionItem({
 					{!isActive && session.aiTabs?.some((tab) => tab.hasUnread) && (
 						<div
 							className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
-							style={{ backgroundColor: theme.colors.error }}
+							style={styles.unreadBadge}
 							title="Unread messages"
 						/>
 					)}
