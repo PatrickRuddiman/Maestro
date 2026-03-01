@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, memo } from 'react';
 import {
 	Plus,
 	Trash2,
@@ -29,7 +29,10 @@ interface EditingCommand {
 	prompt: string;
 }
 
-export function AICommandsPanel({
+// PERF: React.memo prevents re-renders when parent (SettingsModal) re-renders due to
+// unrelated Zustand settings store changes. Props are stable: theme is a static record
+// lookup, customAICommands comes from Zustand state, setCustomAICommands is a Zustand action.
+export const AICommandsPanel = memo(function AICommandsPanel({
 	theme,
 	customAICommands,
 	setCustomAICommands,
@@ -594,4 +597,4 @@ export function AICommandsPanel({
 			)}
 		</div>
 	);
-}
+});

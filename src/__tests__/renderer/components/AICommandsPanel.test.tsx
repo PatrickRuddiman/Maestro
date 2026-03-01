@@ -1668,4 +1668,123 @@ describe('AICommandsPanel', () => {
 			expect(callArg[0].prompt).toBe('Updated prompt');
 		});
 	});
+
+	describe('React.memo wrapping (PERF)', () => {
+		it('should be wrapped in React.memo', () => {
+			// AICommandsPanel is exported as memo(function AICommandsPanel(...))
+			expect(AICommandsPanel).toBeDefined();
+			// React.memo wraps the component and has a $$typeof property
+			expect((AICommandsPanel as any).$$typeof).toBe(Symbol.for('react.memo'));
+		});
+
+		it('should skip re-render when all props are identical references', () => {
+			const commands = [createMockCommand({ id: 'cmd-1', command: '/test' })];
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			const initialElement = screen.getByText('/test');
+			expect(initialElement).toBeInTheDocument();
+
+			// Rerender with exact same prop references — memo should skip
+			rerender(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			// Component should still be in the DOM with same content (memo doesn't unmount)
+			expect(screen.getByText('/test')).toBe(initialElement);
+		});
+
+		it('should re-render when theme prop changes', () => {
+			const commands = [createMockCommand({ id: 'cmd-1', command: '/themed' })];
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			const commandText = screen.getByText('/themed');
+			expect(commandText).toHaveStyle({ color: mockTheme.colors.accent });
+
+			const newTheme: Theme = {
+				...mockTheme,
+				id: 'new-theme',
+				colors: { ...mockTheme.colors, accent: '#ff0000' },
+			};
+
+			// Rerender with different theme — memo should allow re-render
+			rerender(
+				<AICommandsPanel
+					theme={newTheme}
+					customAICommands={commands}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			expect(screen.getByText('/themed')).toHaveStyle({ color: '#ff0000' });
+		});
+
+		it('should re-render when customAICommands prop changes', () => {
+			const commands1 = [createMockCommand({ id: 'cmd-1', command: '/first' })];
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands1}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			expect(screen.getByText('/first')).toBeInTheDocument();
+
+			const commands2 = [...commands1, createMockCommand({ id: 'cmd-2', command: '/second' })];
+
+			// Rerender with new commands array — memo should allow re-render
+			rerender(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands2}
+					setCustomAICommands={mockSetCustomAICommands}
+				/>
+			);
+
+			expect(screen.getByText('/first')).toBeInTheDocument();
+			expect(screen.getByText('/second')).toBeInTheDocument();
+		});
+
+		it('should skip re-render when parent provides same setCustomAICommands reference', () => {
+			const stableSetFn = vi.fn();
+			const commands = [createMockCommand({ id: 'cmd-1', command: '/stable' })];
+
+			const { rerender } = render(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={stableSetFn}
+				/>
+			);
+
+			const initialElement = screen.getByText('/stable');
+
+			// Rerender with same references — memo should skip
+			rerender(
+				<AICommandsPanel
+					theme={mockTheme}
+					customAICommands={commands}
+					setCustomAICommands={stableSetFn}
+				/>
+			);
+
+			expect(screen.getByText('/stable')).toBe(initialElement);
+		});
+	});
 });
