@@ -1518,7 +1518,7 @@ export function AgentSessionsBrowser({
 										isSelected={i === selectedIndex}
 										isStarred={starredSessions.has(session.sessionId)}
 										activeAgentSessionId={activeAgentSessionId}
-										renamingSessionId={renamingSessionId}
+										isRenaming={renamingSessionId === session.sessionId}
 										renameValue={renamingSessionId === session.sessionId ? renameValue : ''}
 										searchMode={searchMode}
 										searchResultInfo={getSearchResultInfo(session.sessionId)}

@@ -84,7 +84,7 @@ const createDefaultProps = (
 	isSelected: false,
 	isStarred: false,
 	activeAgentSessionId: null,
-	renamingSessionId: null,
+	isRenaming: false,
 	renameValue: '',
 	searchMode: 'title',
 	theme: defaultTheme,
@@ -302,7 +302,7 @@ describe('SessionListItem', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						isRenaming: true,
 						renameValue: 'New Name',
 					})}
 				/>
@@ -318,7 +318,7 @@ describe('SessionListItem', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						isRenaming: true,
 						renameValue: 'New Name',
 						onSubmitRename,
 					})}
@@ -335,7 +335,7 @@ describe('SessionListItem', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						isRenaming: true,
 						renameValue: 'New Name',
 						onCancelRename,
 					})}
@@ -349,11 +349,11 @@ describe('SessionListItem', () => {
 	});
 
 	describe('renameValue isolation', () => {
-		it('does not show rename input when renameValue is empty and renamingSessionId does not match', () => {
+		it('does not show rename input when isRenaming is false', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'other-session-id',
+						isRenaming: false,
 						renameValue: '',
 					})}
 				/>
@@ -362,11 +362,11 @@ describe('SessionListItem', () => {
 			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
 		});
 
-		it('shows rename input with value when renamingSessionId matches this session', () => {
+		it('shows rename input with value when isRenaming is true', () => {
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'abc12345-6789-4a01-9123-456789abcdef',
+						isRenaming: true,
 						renameValue: 'Typing...',
 					})}
 				/>
@@ -381,7 +381,7 @@ describe('SessionListItem', () => {
 			// Non-renaming items should always receive renameValue='' from the parent.
 			// Verify that re-rendering with the same empty string does not cause new output.
 			const props = createDefaultProps({
-				renamingSessionId: null,
+				isRenaming: false,
 				renameValue: '',
 			});
 			const { container, rerender } = render(<SessionListItem {...props} />);
@@ -394,9 +394,8 @@ describe('SessionListItem', () => {
 		});
 
 		it('re-renders when renameValue changes for the renaming item', () => {
-			const sessionId = 'abc12345-6789-4a01-9123-456789abcdef';
 			const props1 = createDefaultProps({
-				renamingSessionId: sessionId,
+				isRenaming: true,
 				renameValue: 'Old',
 			});
 			const { rerender } = render(<SessionListItem {...props1} />);
@@ -406,7 +405,7 @@ describe('SessionListItem', () => {
 
 			// Update renameValue — the renaming item should re-render with new value
 			const props2 = createDefaultProps({
-				renamingSessionId: sessionId,
+				isRenaming: true,
 				renameValue: 'New Name',
 			});
 			rerender(<SessionListItem {...props2} />);
@@ -415,19 +414,73 @@ describe('SessionListItem', () => {
 			expect(input2).toHaveValue('New Name');
 		});
 
-		it('does not show rename input when renameValue has text but renamingSessionId does not match', () => {
-			// Edge case: parent passes non-empty renameValue but for a different session.
+		it('does not show rename input when isRenaming is false even with non-empty renameValue', () => {
+			// Edge case: parent passes non-empty renameValue but isRenaming is false.
 			// With the isolation fix, non-renaming items receive '' so this case shouldn't happen,
-			// but the component should still not show rename input based on renamingSessionId mismatch.
+			// but the component should still not show rename input based on isRenaming being false.
 			render(
 				<SessionListItem
 					{...createDefaultProps({
-						renamingSessionId: 'different-session-id',
+						isRenaming: false,
 						renameValue: 'Some value',
 					})}
 				/>
 			);
 
+			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
+		});
+	});
+
+	describe('isRenaming prop optimization', () => {
+		it('does not accept renamingSessionId prop', () => {
+			// TypeScript type check: SessionListItemProps should not have renamingSessionId
+			const props = createDefaultProps();
+			expect('renamingSessionId' in props).toBe(false);
+			expect('isRenaming' in props).toBe(true);
+		});
+
+		it('React.memo skips re-render when isRenaming stays false', () => {
+			// When other items start/stop renaming, isRenaming stays false for this item.
+			// Verify that re-rendering with the same false value does not cause new output.
+			const props = createDefaultProps({ isRenaming: false });
+			const { container, rerender } = render(<SessionListItem {...props} />);
+
+			const initialHtml = container.innerHTML;
+
+			// Rerender with same props (stable false) — memo should skip
+			rerender(<SessionListItem {...props} />);
+			expect(container.innerHTML).toBe(initialHtml);
+		});
+
+		it('re-renders when isRenaming changes from false to true', () => {
+			const props = createDefaultProps({ isRenaming: false, renameValue: '' });
+			const { rerender } = render(<SessionListItem {...props} />);
+
+			// No rename input initially
+			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
+
+			// Change isRenaming to true
+			rerender(
+				<SessionListItem {...createDefaultProps({ isRenaming: true, renameValue: 'Test' })} />
+			);
+
+			// Now rename input should appear
+			const input = screen.getByPlaceholderText('Enter session name...');
+			expect(input).toBeInTheDocument();
+			expect(input).toHaveValue('Test');
+		});
+
+		it('re-renders when isRenaming changes from true to false', () => {
+			const props = createDefaultProps({ isRenaming: true, renameValue: 'Test' });
+			const { rerender } = render(<SessionListItem {...props} />);
+
+			// Rename input should be present
+			expect(screen.getByPlaceholderText('Enter session name...')).toBeInTheDocument();
+
+			// Change isRenaming to false
+			rerender(<SessionListItem {...createDefaultProps({ isRenaming: false, renameValue: '' })} />);
+
+			// Rename input should be gone
 			expect(screen.queryByPlaceholderText('Enter session name...')).not.toBeInTheDocument();
 		});
 	});
