@@ -60,6 +60,11 @@ import { useGroupChatStore } from '../stores/groupChatStore';
 import { getModalActions } from '../stores/modalStore';
 import { safeClipboardWrite } from '../utils/clipboard';
 
+// PERF: Stable empty array reference for optional visibleSessions prop default.
+// Avoids creating a new [] on every render, which would break downstream useMemo
+// dependencies that use visibleSessions in their dependency arrays.
+const EMPTY_SESSIONS: Session[] = [];
+
 // ============================================================================
 // SessionContextMenu - Right-click context menu for session items
 // ============================================================================
@@ -1330,7 +1335,7 @@ function SessionListInner(props: SessionListProps) {
 		onOpenWorktreeConfig,
 		onDeleteWorktree,
 		showSessionJumpNumbers = false,
-		visibleSessions = [],
+		visibleSessions = EMPTY_SESSIONS,
 		openWizard,
 		startTour,
 		sidebarContainerRef,

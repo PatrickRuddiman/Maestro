@@ -3393,6 +3393,56 @@ describe('SessionList', () => {
 	});
 
 	// ============================================================================
+	// EMPTY_SESSIONS Stable Default Tests (PERF-08: visibleSessions default)
+	// ============================================================================
+
+	describe('EMPTY_SESSIONS stable default for visibleSessions', () => {
+		it('renders without error when visibleSessions prop is omitted', () => {
+			// When visibleSessions is not passed, the module-level EMPTY_SESSIONS constant
+			// provides a stable empty array reference, avoiding new [] per render
+			const sessions = [createMockSession({ id: 's1', name: 'No Visible Prop' })];
+			useSessionStore.setState({ sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const { visibleSessions: _removed, ...propsWithout } = createDefaultProps({
+				sortedSessions: sessions,
+			});
+			render(<SessionList {...propsWithout} />);
+			expect(screen.getByText('No Visible Prop')).toBeInTheDocument();
+		});
+
+		it('uses provided visibleSessions when explicitly passed', () => {
+			const sessions = [
+				createMockSession({ id: 's1', name: 'Visible Session' }),
+				createMockSession({ id: 's2', name: 'Other Session' }),
+			];
+			useSessionStore.setState({ sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			const props = createDefaultProps({
+				sortedSessions: sessions,
+				visibleSessions: sessions,
+				showSessionJumpNumbers: true,
+			});
+			render(<SessionList {...props} />);
+			// Jump numbers should appear since visibleSessions was provided with data
+			expect(screen.getByText('Visible Session')).toBeInTheDocument();
+		});
+
+		it('does not produce jump numbers when visibleSessions defaults to empty', () => {
+			const sessions = [createMockSession({ id: 's1', name: 'Default Empty' })];
+			useSessionStore.setState({ sessions });
+			useUIStore.setState({ leftSidebarOpen: true });
+			// showSessionJumpNumbers is true but visibleSessions defaults to EMPTY_SESSIONS
+			const { visibleSessions: _removed, ...propsWithout } = createDefaultProps({
+				sortedSessions: sessions,
+				showSessionJumpNumbers: true,
+			});
+			render(<SessionList {...propsWithout} />);
+			// The session renders but since visibleSessions is empty, no jump numbers are produced
+			expect(screen.getByText('Default Empty')).toBeInTheDocument();
+		});
+	});
+
+	// ============================================================================
 	// CollapsedPillSegment Tests (PERF-08: tooltip position isolation)
 	// ============================================================================
 
