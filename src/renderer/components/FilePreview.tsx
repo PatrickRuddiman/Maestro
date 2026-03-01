@@ -287,6 +287,14 @@ const LANGUAGE_CLASS_REGEX = /language-(\w+)/;
 const FILE_URL_REGEX = /^file:\/\//;
 const SEARCH_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
 
+// Pre-allocated static style object for SyntaxHighlighter code view (avoids new object per render)
+const CODE_VIEW_CUSTOM_STYLE = {
+	margin: 0,
+	padding: '24px',
+	background: 'transparent',
+	fontSize: '13px',
+};
+
 // Format date/time for display
 const formatDateTime = (isoString: string): string => {
 	const date = new Date(isoString);
@@ -2453,12 +2461,7 @@ export const FilePreview = React.memo(
 							<SyntaxHighlighter
 								language={language}
 								style={vscDarkPlus}
-								customStyle={{
-									margin: 0,
-									padding: '24px',
-									background: 'transparent',
-									fontSize: '13px',
-								}}
+								customStyle={CODE_VIEW_CUSTOM_STYLE}
 								showLineNumbers
 								PreTag="div"
 							>
