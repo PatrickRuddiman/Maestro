@@ -553,6 +553,27 @@ export function AgentSessionsBrowser({
 		return new Date(viewingSession.timestamp).toLocaleString();
 	}, [viewingSession?.timestamp]);
 
+	// Pre-compute usage percent, color, and formatted string to avoid duplicate computation in render
+	const tokenUsage = useMemo(() => {
+		if (!viewingSession) return { color: '', formattedPercent: '' };
+		const usagePercent =
+			((viewingSession.inputTokens + viewingSession.outputTokens) / 200000) * 100;
+		const color =
+			usagePercent >= 90
+				? theme.colors.error
+				: usagePercent >= 70
+					? theme.colors.warning
+					: theme.colors.accent;
+		const formattedPercent = Math.min(100, usagePercent).toFixed(1);
+		return { color, formattedPercent };
+	}, [
+		viewingSession?.inputTokens,
+		viewingSession?.outputTokens,
+		theme.colors.error,
+		theme.colors.warning,
+		theme.colors.accent,
+	]);
+
 	// Keyboard navigation
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (viewingSession) {
@@ -991,24 +1012,8 @@ export function AgentSessionsBrowser({
 									</span>
 									<span className="text-[10px]" style={{ color: theme.colors.textDim }}>
 										of 200k context{' '}
-										<span
-											className="font-mono font-medium"
-											style={{
-												color: (() => {
-													const usagePercent =
-														((viewingSession.inputTokens + viewingSession.outputTokens) / 200000) *
-														100;
-													if (usagePercent >= 90) return theme.colors.error;
-													if (usagePercent >= 70) return theme.colors.warning;
-													return theme.colors.accent;
-												})(),
-											}}
-										>
-											{Math.min(
-												100,
-												((viewingSession.inputTokens + viewingSession.outputTokens) / 200000) * 100
-											).toFixed(1)}
-											%
+										<span className="font-mono font-medium" style={{ color: tokenUsage.color }}>
+											{tokenUsage.formattedPercent}%
 										</span>
 									</span>
 								</div>
